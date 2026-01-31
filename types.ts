@@ -27,6 +27,13 @@ export enum Status {
   CONCLUIDA = 'Concluída'
 }
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
 export interface Account {
   id: string;
   name: string;
@@ -76,6 +83,7 @@ export interface AppSettings {
 }
 
 export interface AppState {
+  user: User | null;
   accounts: Account[];
   fixedExpenses: FixedExpense[];
   activities: FinancialActivity[];

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -7,8 +8,10 @@ import {
   TrendingUp, 
   PieChart, 
   Settings as SettingsIcon,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
-import { AppState } from './types';
+import { AppState, User } from './types';
 import { 
   MONTHLY_SALARY, 
   MANDATORY_SAVINGS, 
@@ -28,38 +31,20 @@ import Planning from './components/Planning';
 import Savings from './components/Savings';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
+import Auth from './components/Auth';
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(() => {
+    const savedUser = localStorage.getItem('kwanza_plan_session');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  
   const [activeTab, setActiveTab] = useState('dashboard');
+  
   const [state, setState] = useState<AppState>(() => {
-    const saved = localStorage.getItem('kwanza_plan_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Migração de dados para novas versões
-        if (!parsed.settings) {
-          parsed.settings = {
-            monthlySalary: MONTHLY_SALARY,
-            mandatorySavings: MANDATORY_SAVINGS,
-            savingsPercentageRule: 40,
-            emergencyFundTarget: EMERGENCY_FUND_TARGET,
-            monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
-            fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
-            highCostThreshold: HIGH_COST_THRESHOLD,
-            initialEurBalance: 0
-          };
-        }
-        if (parsed.settings.savingsPercentageRule === undefined) {
-          parsed.settings.savingsPercentageRule = 40;
-        }
-        if (!parsed.accounts) parsed.accounts = [];
-        if (!parsed.savings) parsed.savings = [];
-        return parsed;
-      } catch (e) {
-        console.error("Erro ao carregar dados salvos:", e);
-      }
-    }
+    // Inicialização temporária, o useEffect tratará do carregamento real por utilizador
     return {
+      user: null,
       accounts: [],
       fixedExpenses: [],
       activities: [],
@@ -78,13 +63,70 @@ const App: React.FC = () => {
     };
   });
 
+  // Efeito para carregar dados quando o utilizador muda
   useEffect(() => {
-    localStorage.setItem('kwanza_plan_data', JSON.stringify(state));
-  }, [state]);
+    if (user) {
+      const storageKey = `kwanza_plan_data_${user.id}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Garantir que o user no state é o user atual
+          setState({ ...parsed, user });
+        } catch (e) {
+          console.error("Erro ao carregar dados do utilizador:", e);
+        }
+      } else {
+        // Estado inicial para novo utilizador
+        setState({
+          user,
+          accounts: [],
+          fixedExpenses: [],
+          activities: [],
+          savings: [],
+          emergencyFundCurrent: INITIAL_EMERGENCY_FUND,
+          settings: {
+            monthlySalary: MONTHLY_SALARY,
+            mandatorySavings: MANDATORY_SAVINGS,
+            savingsPercentageRule: 40,
+            emergencyFundTarget: EMERGENCY_FUND_TARGET,
+            monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
+            fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
+            highCostThreshold: HIGH_COST_THRESHOLD,
+            initialEurBalance: 0
+          }
+        });
+      }
+    }
+  }, [user]);
+
+  // Salvar dados sempre que o estado mudar
+  useEffect(() => {
+    if (user && state.user) {
+      const storageKey = `kwanza_plan_data_${user.id}`;
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    }
+  }, [state, user]);
+
+  const handleLogin = (newUser: User) => {
+    setUser(newUser);
+    localStorage.setItem('kwanza_plan_session', JSON.stringify(newUser));
+  };
+
+  const handleLogout = () => {
+    if (confirm("Deseja terminar a sessão?")) {
+      setUser(null);
+      localStorage.removeItem('kwanza_plan_session');
+    }
+  };
 
   const updateState = (updater: (prev: AppState) => AppState) => {
     setState(prev => updater(prev));
   };
+
+  if (!user) {
+    return <Auth onLogin={handleLogin} />;
+  }
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -104,7 +146,7 @@ const App: React.FC = () => {
       case 'planning': return <Planning state={state} />;
       case 'savings': return <Savings state={state} updateState={updateState} />;
       case 'reports': return <Reports state={state} />;
-      case 'settings': return <Settings state={state} updateState={updateState} />;
+      case 'settings': return <Settings state={state} updateState={updateState} onLogout={handleLogout} />;
       default: return <Dashboard state={state} />;
     }
   };
@@ -141,8 +183,15 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-100 hidden md:block">
+        <div className="p-4 border-t border-slate-100">
           <div className="bg-slate-900 rounded-xl p-4 text-white">
+            <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
+              <img src={user.avatar} className="w-8 h-8 rounded-full border border-white/20" alt="avatar" />
+              <div className="overflow-hidden">
+                <p className="text-xs font-bold truncate">{user.name}</p>
+                <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+              </div>
+            </div>
             <p className="text-slate-400 text-xs mb-1">Salário Mensal</p>
             <p className="font-bold text-lg">{formatKz(state.settings.monthlySalary)}</p>
             <div className="mt-3 bg-white/10 rounded-full h-1 w-full overflow-hidden">
@@ -151,9 +200,13 @@ const App: React.FC = () => {
                 style={{ width: `${Math.min(savingsPercentage, 100)}%` }}
               ></div>
             </div>
-            <p className="text-[10px] text-indigo-200 mt-2 uppercase tracking-wider font-semibold">
-              Regra de Poupança: {savingsPercentage.toFixed(0)}%
-            </p>
+            <button 
+              onClick={handleLogout}
+              className="mt-4 flex items-center gap-2 text-[10px] text-slate-400 hover:text-rose-400 transition-colors uppercase font-black tracking-widest"
+            >
+              <LogOut size={12} />
+              Terminar Sessão
+            </button>
           </div>
         </div>
       </aside>
@@ -165,7 +218,7 @@ const App: React.FC = () => {
               <h2 className="text-2xl font-bold text-slate-800">
                 {menuItems.find(i => i.id === activeTab)?.label}
               </h2>
-              <p className="text-slate-500 text-sm mt-1">Gestão inteligente do seu património.</p>
+              <p className="text-slate-500 text-sm mt-1">Gestão inteligente para {user.name}.</p>
             </div>
           </div>
         </header>

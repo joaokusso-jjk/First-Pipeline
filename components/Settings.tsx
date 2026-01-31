@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppState, AppSettings, Account } from '../types';
-import { Save, RefreshCcw, AlertCircle, Shield, RotateCcw, Globe, Plus, Trash2, Building2, Coins, AlertTriangle, Percent } from 'lucide-react';
+import { Save, RefreshCcw, AlertCircle, Shield, RotateCcw, Globe, Plus, Trash2, Building2, Coins, AlertTriangle, Percent, LogOut } from 'lucide-react';
 import { formatKz, formatEur } from '../utils';
 import { 
   MONTHLY_SALARY, 
@@ -14,9 +14,10 @@ import {
 interface Props {
   state: AppState;
   updateState: (updater: (prev: AppState) => AppState) => void;
+  onLogout: () => void;
 }
 
-const Settings: React.FC<Props> = ({ state, updateState }) => {
+const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
   const [localSettings, setLocalSettings] = useState<AppSettings>(state.settings);
   const [localEmergencyFund, setLocalEmergencyFund] = useState<number>(state.emergencyFundCurrent);
   
@@ -92,9 +93,10 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
   };
 
   const resetAllData = () => {
-    if (confirm("AVISO: Isto apagará TODOS os dados da aplicação. Deseja continuar?")) {
+    if (confirm("AVISO: Isto apagará TODOS os dados da aplicação deste utilizador. Deseja continuar?")) {
       if (confirm("TEM MESMO A CERTEZA? Esta ação é irreversível.")) {
-        localStorage.removeItem('kwanza_plan_data');
+        const storageKey = `kwanza_plan_data_${state.user?.id}`;
+        localStorage.removeItem(storageKey);
         window.location.reload();
       }
     }
@@ -106,6 +108,24 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-16">
+      {/* Perfil e Sessão */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex items-center gap-4">
+          <img src={state.user?.avatar} className="w-16 h-16 rounded-2xl border-4 border-indigo-50 shadow-sm" alt="profile" />
+          <div>
+            <h3 className="text-xl font-black text-slate-800">{state.user?.name}</h3>
+            <p className="text-slate-500 text-sm">{state.user?.email}</p>
+          </div>
+        </div>
+        <button 
+          onClick={onLogout}
+          className="flex items-center gap-2 bg-rose-50 text-rose-600 px-6 py-3 rounded-xl hover:bg-rose-100 transition-all font-bold text-sm uppercase tracking-widest"
+        >
+          <LogOut size={18} />
+          Terminar Sessão
+        </button>
+      </div>
+
       {/* Gestão de Contas */}
       <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center justify-between mb-6">
@@ -187,11 +207,6 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
               </div>
             </div>
           ))}
-          {state.accounts.length === 0 && (
-            <div className="text-center py-10 border-2 border-dashed border-slate-100 rounded-3xl text-slate-400 text-sm italic">
-              Nenhuma conta registada. Crie a sua primeira conta acima.
-            </div>
-          )}
         </div>
       </div>
 
@@ -203,16 +218,9 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
               <Shield className="text-emerald-600" size={24} />
               Regras do Sistema
             </h3>
-            <p className="text-slate-500 text-sm">Configure os limites e metas de cálculo da app.</p>
+            <p className="text-slate-500 text-sm">Configure os limites e metas de cálculo para a sua conta.</p>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
-            <button 
-              onClick={handleRestoreDefaults}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-4 py-3 rounded-xl hover:bg-slate-200 transition-all font-bold text-xs uppercase"
-            >
-              <RotateCcw size={16} />
-              Padrões
-            </button>
             <button 
               onClick={handleSave}
               className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-all font-bold shadow-lg shadow-indigo-100"
@@ -241,12 +249,6 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
                 <div>
                   <label className="block text-xs font-bold text-indigo-700 uppercase mb-2 flex justify-between items-center">
                     <span>Regra de Poupança (%)</span>
-                    <button 
-                      onClick={applySuggestion}
-                      className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-md hover:bg-indigo-700 transition-colors"
-                    >
-                      Sugestão: 40%
-                    </button>
                   </label>
                   <div className="flex items-center gap-3">
                     <Percent size={18} className="text-indigo-400" />
@@ -257,10 +259,6 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
                       className="w-full px-4 py-2 rounded-xl border border-indigo-200 font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-indigo-600 font-medium">Valor Calculado:</span>
-                  <span className="text-indigo-800 font-black">{formatKz(localSettings.mandatorySavings)}</span>
                 </div>
               </div>
             </div>
@@ -278,7 +276,7 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold text-amber-600 outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
-              <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 relative">
+              <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100">
                 <label className="block text-xs font-bold text-amber-800 uppercase mb-2 tracking-tight">Valor na Reserva (Kz - Contador)</label>
                 <input 
                   type="number" 
@@ -286,10 +284,6 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
                   onChange={e => setLocalEmergencyFund(Number(e.target.value))}
                   className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white font-black text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
                 />
-                <div className="flex items-start gap-2 mt-4 text-[10px] text-amber-700 leading-tight">
-                  <AlertCircle size={14} className="shrink-0" />
-                  <p>Este contador virtual não afeta os saldos das contas reais. É usado para monitorizar o progresso da sua meta.</p>
-                </div>
               </div>
             </div>
           </div>
@@ -308,9 +302,9 @@ const Settings: React.FC<Props> = ({ state, updateState }) => {
         
         <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex-1">
-            <h4 className="font-bold text-rose-800 text-lg">Reset Total da Aplicação</h4>
+            <h4 className="font-bold text-rose-800 text-lg">Reset Total dos Seus Dados</h4>
             <p className="text-xs text-rose-600 mt-1 leading-relaxed">
-              Isto apagará permanentemente <strong>contas, saldos, históricos, atividades e configurações</strong>.
+              Isto apagará permanentemente tudo associado à sua conta.
             </p>
           </div>
           <button 
