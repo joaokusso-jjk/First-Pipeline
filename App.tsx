@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
@@ -9,9 +8,7 @@ import {
   PieChart, 
   Settings as SettingsIcon,
 } from 'lucide-react';
-import { 
-  AppState, 
-} from './types';
+import { AppState } from './types';
 import { 
   MONTHLY_SALARY, 
   MANDATORY_SAVINGS, 
@@ -21,7 +18,7 @@ import {
   FIXED_EXPENSES_LIMIT,
   HIGH_COST_THRESHOLD
 } from './constants';
-import { formatKz, formatEur } from './utils';
+import { formatKz } from './utils';
 
 // Components
 import Dashboard from './components/Dashboard';
@@ -37,23 +34,30 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem('kwanza_plan_data');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!parsed.accounts) parsed.accounts = [];
-      if (!parsed.settings) {
-        parsed.settings = {
-          monthlySalary: MONTHLY_SALARY,
-          mandatorySavings: MANDATORY_SAVINGS,
-          savingsPercentageRule: 40,
-          emergencyFundTarget: EMERGENCY_FUND_TARGET,
-          monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
-          fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
-          highCostThreshold: HIGH_COST_THRESHOLD,
-          initialEurBalance: 0
-        };
-      } else if (parsed.settings.savingsPercentageRule === undefined) {
-        parsed.settings.savingsPercentageRule = (parsed.settings.mandatorySavings / parsed.settings.monthlySalary) * 100 || 40;
+      try {
+        const parsed = JSON.parse(saved);
+        // Migração de dados para novas versões
+        if (!parsed.settings) {
+          parsed.settings = {
+            monthlySalary: MONTHLY_SALARY,
+            mandatorySavings: MANDATORY_SAVINGS,
+            savingsPercentageRule: 40,
+            emergencyFundTarget: EMERGENCY_FUND_TARGET,
+            monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
+            fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
+            highCostThreshold: HIGH_COST_THRESHOLD,
+            initialEurBalance: 0
+          };
+        }
+        if (parsed.settings.savingsPercentageRule === undefined) {
+          parsed.settings.savingsPercentageRule = 40;
+        }
+        if (!parsed.accounts) parsed.accounts = [];
+        if (!parsed.savings) parsed.savings = [];
+        return parsed;
+      } catch (e) {
+        console.error("Erro ao carregar dados salvos:", e);
       }
-      return parsed;
     }
     return {
       accounts: [],
