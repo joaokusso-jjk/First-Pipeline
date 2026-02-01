@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppState, AppSettings, Account } from '../types';
-import { Save, RefreshCcw, AlertCircle, Shield, RotateCcw, Globe, Plus, Trash2, Building2, Coins, AlertTriangle, Percent, LogOut, ArrowRightLeft } from 'lucide-react';
+import { Save, RefreshCcw, AlertCircle, Shield, RotateCcw, Globe, Plus, Trash2, Building2, Coins, AlertTriangle, Percent, LogOut, ArrowRightLeft, Wallet2 } from 'lucide-react';
 import { formatKz, formatEur } from '../utils';
 import { 
   MONTHLY_SALARY, 
@@ -117,6 +117,8 @@ const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
     setLocalSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  const deltaValue = localEmergencyFund - state.emergencyFundCurrent;
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-16">
       {/* Perfil e Sessão */}
@@ -225,7 +227,7 @@ const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
               <Shield className="text-emerald-600" size={24} />
               Regras e Reserva
             </h3>
-            <p className="text-slate-500 text-xs md:text-sm">Sincronize o contador com o saldo real.</p>
+            <p className="text-slate-500 text-xs md:text-sm">Configure os seus limites e fundo de reserva.</p>
           </div>
           <button 
             onClick={handleSave}
@@ -279,27 +281,33 @@ const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
                 />
               </div>
 
-              <div className="p-4 md:p-6 bg-amber-50 rounded-2xl border border-amber-100 space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-amber-800 uppercase mb-2">Valor Atual no Contador (Kz)</label>
-                  <input 
-                    type="number" 
-                    value={localEmergencyFund}
-                    onChange={e => setLocalEmergencyFund(Number(e.target.value))}
-                    className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white font-black text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 text-lg"
-                  />
+              <div className="p-4 md:p-6 bg-amber-50 rounded-3xl border border-amber-100 space-y-5">
+                <div className="flex items-center gap-3 mb-2">
+                   <div className="p-2 bg-amber-200/50 rounded-xl">
+                      <Wallet2 size={20} className="text-amber-700" />
+                   </div>
+                   <h5 className="font-black text-amber-900 text-xs uppercase tracking-tight">Fundo Físico</h5>
                 </div>
 
-                {localEmergencyFund !== state.emergencyFundCurrent && (
-                  <div className="animate-in slide-in-from-top-2 duration-300">
-                    <label className="block text-[10px] font-bold text-amber-600 uppercase mb-2 flex items-center gap-2">
-                      <ArrowRightLeft size={12} />
-                      Aplicar diferença na conta:
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-800 uppercase mb-2">Valor Atual no Contador (Kz)</label>
+                    <input 
+                      type="number" 
+                      value={localEmergencyFund}
+                      onChange={e => setLocalEmergencyFund(Number(e.target.value))}
+                      className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white font-black text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 text-lg shadow-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-800 uppercase mb-2 flex items-center gap-2">
+                      Conta onde o valor reside:
                     </label>
                     <select 
                       value={selectedEmergencyAccountId}
                       onChange={e => setSelectedEmergencyAccountId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white font-bold text-slate-700 text-sm outline-none focus:ring-2 focus:ring-amber-500"
+                      className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white font-bold text-slate-700 text-sm outline-none focus:ring-2 focus:ring-amber-500 shadow-sm"
                     >
                       {kzAccounts.length > 0 ? (
                         kzAccounts.map(acc => (
@@ -309,10 +317,16 @@ const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
                         <option value="">Nenhuma conta Kz disponível</option>
                       )}
                     </select>
-                    <p className="text-[9px] text-amber-700 mt-2 italic">
-                      * O saldo da conta selecionada será ajustado em {formatKz(localEmergencyFund - state.emergencyFundCurrent)}.
-                    </p>
                   </div>
+                </div>
+
+                {deltaValue !== 0 && (
+                   <div className="pt-2 border-t border-amber-200/50 animate-in fade-in slide-in-from-top-1">
+                      <div className={`text-[10px] font-bold px-3 py-2 rounded-lg flex items-center gap-2 ${deltaValue > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                         <ArrowRightLeft size={14} />
+                         Ajuste de saldo: {deltaValue > 0 ? '+' : ''}{formatKz(deltaValue)}
+                      </div>
+                   </div>
                 )}
               </div>
             </div>
@@ -328,14 +342,14 @@ const Settings: React.FC<Props> = ({ state, updateState, onLogout }) => {
         </div>
         
         <div className="bg-rose-50 p-4 md:p-6 rounded-2xl border border-rose-100 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-xs text-rose-600 font-medium">
-            Apagar permanentemente todos os dados desta conta.
+          <p className="text-xs text-rose-600 font-medium text-center md:text-left">
+            Apagar permanentemente todos os dados desta conta. Esta ação não pode ser revertida.
           </p>
           <button 
             onClick={resetAllData}
             className="w-full md:w-auto bg-rose-600 text-white px-6 py-3 rounded-xl hover:bg-rose-700 transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-100"
           >
-            Limpar Dados
+            Limpar Tudo
           </button>
         </div>
       </div>
