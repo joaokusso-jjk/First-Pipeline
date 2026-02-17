@@ -130,7 +130,7 @@ const App: React.FC = () => {
             <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
               <TrendingUp size={24} />
             </div>
-            <span className="text-2xl font-black tracking-tighter">Budgi.</span>
+            <span className="text-2xl font-black tracking-tighter">KwanzaPlan.</span>
           </div>
           
           <nav className="space-y-2">

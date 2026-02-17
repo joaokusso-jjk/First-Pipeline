@@ -63,7 +63,7 @@ const Savings: React.FC<Props> = ({ state, updateState }) => {
           <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">Fontes de Reserva Multimoeda</h2>
           <p className="text-slate-500 font-bold leading-relaxed mb-6">
             Pode marcar qualquer uma das suas carteiras como <span className="text-indigo-600">Reserva Financeira</span>. 
-            O Budgi irá consolidar os valores em Kwanzas automaticamente.
+            O KwanzaPlan irá consolidar os valores em Kwanzas automaticamente.
           </p>
           <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">
             <RefreshCw size={14} className="animate-spin-slow" /> Câmbio de Referência: 1€ = {formatKz(EUR_TO_AOA_RATE)}
