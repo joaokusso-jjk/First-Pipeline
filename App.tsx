@@ -2,38 +2,26 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
-  CreditCard, 
   CalendarRange, 
   Target, 
   TrendingUp, 
   PieChart, 
   Settings as SettingsIcon,
   LogOut,
-  User as UserIcon,
-  Menu,
-  X
+  ChevronRight,
+  Plus,
+  Coins
 } from 'lucide-react';
-import { AppState, User } from './types';
-import { 
-  MONTHLY_SALARY, 
-  MANDATORY_SAVINGS, 
-  EMERGENCY_FUND_TARGET, 
-  INITIAL_EMERGENCY_FUND, 
-  MONTHLY_BUDGET_LIMIT, 
-  FIXED_EXPENSES_LIMIT,
-  HIGH_COST_THRESHOLD
-} from './constants';
-import { formatKz } from './utils';
+import { AppState, User, Transaction, TransactionType, Status } from './types';
 
 // Components
 import Dashboard from './components/Dashboard';
-import FixedExpenses from './components/FixedExpenses';
+import Goals from './components/Goals';
 import Activities from './components/Activities';
-import Planning from './components/Planning';
-import Savings from './components/Savings';
-import Reports from './components/Reports';
 import Settings from './components/Settings';
 import Auth from './components/Auth';
+import Savings from './components/Savings';
+import Reports from './components/Reports';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -43,26 +31,24 @@ const App: React.FC = () => {
   
   const [activeTab, setActiveTab] = useState('dashboard');
   
-  const [state, setState] = useState<AppState>(() => {
-    return {
-      user: null,
-      accounts: [],
-      fixedExpenses: [],
-      activities: [],
-      savings: [],
-      emergencyFundCurrent: INITIAL_EMERGENCY_FUND,
-      settings: {
-        monthlySalary: MONTHLY_SALARY,
-        mandatorySavings: MANDATORY_SAVINGS,
-        savingsPercentageRule: 40,
-        emergencyFundTarget: EMERGENCY_FUND_TARGET,
-        monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
-        fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
-        highCostThreshold: HIGH_COST_THRESHOLD,
-        initialEurBalance: 0
-      }
-    };
-  });
+  const [state, setState] = useState<AppState>(() => ({
+    user: null,
+    accounts: [],
+    activities: [],
+    goals: [],
+    transactions: [],
+    fixedExpenses: [],
+    savings: [],
+    emergencyFundCurrent: 0,
+    settings: {
+      monthlySalary: 1250000,
+      mandatorySavings: 500000,
+      savingsPercentageRule: 40,
+      emergencyFundTarget: 1500000,
+      monthlyBudgetLimit: 750000,
+      fixedExpensesLimit: 500000,
+    }
+  }));
 
   useEffect(() => {
     if (user) {
@@ -72,36 +58,14 @@ const App: React.FC = () => {
         try {
           const parsed = JSON.parse(saved);
           setState({ ...parsed, user });
-        } catch (e) {
-          console.error("Erro ao carregar dados do utilizador:", e);
-        }
-      } else {
-        setState({
-          user,
-          accounts: [],
-          fixedExpenses: [],
-          activities: [],
-          savings: [],
-          emergencyFundCurrent: INITIAL_EMERGENCY_FUND,
-          settings: {
-            monthlySalary: MONTHLY_SALARY,
-            mandatorySavings: MANDATORY_SAVINGS,
-            savingsPercentageRule: 40,
-            emergencyFundTarget: EMERGENCY_FUND_TARGET,
-            monthlyBudgetLimit: MONTHLY_BUDGET_LIMIT,
-            fixedExpensesLimit: FIXED_EXPENSES_LIMIT,
-            highCostThreshold: HIGH_COST_THRESHOLD,
-            initialEurBalance: 0
-          }
-        });
+        } catch (e) { console.error(e); }
       }
     }
   }, [user]);
 
   useEffect(() => {
     if (user && state.user) {
-      const storageKey = `kwanza_plan_data_${user.id}`;
-      localStorage.setItem(storageKey, JSON.stringify(state));
+      localStorage.setItem(`kwanza_plan_data_${user.id}`, JSON.stringify(state));
     }
   }, [state, user]);
 
@@ -111,7 +75,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm("Deseja terminar a sessão?")) {
+    if (confirm("Deseja sair da conta?")) {
       setUser(null);
       localStorage.removeItem('kwanza_plan_session');
     }
@@ -121,141 +85,113 @@ const App: React.FC = () => {
     setState(prev => updater(prev));
   };
 
-  if (!user) {
-    return <Auth onLogin={handleLogin} />;
-  }
+  const addTransaction = (t: Omit<Transaction, 'id'>) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const transaction = { ...t, id };
+
+    updateState(prev => {
+      let updatedAccounts = prev.accounts.map(acc => {
+        if (transaction.status === Status.CONCLUIDA) {
+          if (acc.id === transaction.accountId) {
+            if (transaction.type === TransactionType.EXPENSE) return { ...acc, balance: acc.balance - transaction.amount };
+            if (transaction.type === TransactionType.INCOME) return { ...acc, balance: acc.balance + transaction.amount };
+            if (transaction.type === TransactionType.TRANSFER) return { ...acc, balance: acc.balance - transaction.amount };
+          }
+          if (transaction.type === TransactionType.TRANSFER && acc.id === transaction.toAccountId) {
+            return { ...acc, balance: acc.balance + transaction.amount };
+          }
+        }
+        return acc;
+      });
+
+      return {
+        ...prev,
+        accounts: updatedAccounts,
+        transactions: [transaction, ...prev.transactions]
+      };
+    });
+  };
+
+  if (!user) return <Auth onLogin={handleLogin} />;
 
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
-    { id: 'fixed', label: 'Fixas', icon: CreditCard },
+    { id: 'savings', label: 'Poupança', icon: Coins },
+    { id: 'goals', label: 'Metas', icon: Target },
     { id: 'activities', label: 'Atividades', icon: CalendarRange },
-    { id: 'planning', label: 'Plano', icon: Target },
-    { id: 'savings', label: 'Poupança', icon: TrendingUp },
     { id: 'reports', label: 'Análise', icon: PieChart },
-    { id: 'settings', label: 'Ajustes', icon: SettingsIcon },
   ];
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard': return <Dashboard state={state} />;
-      case 'fixed': return <FixedExpenses state={state} updateState={updateState} />;
-      case 'activities': return <Activities state={state} updateState={updateState} />;
-      case 'planning': return <Planning state={state} />;
-      case 'savings': return <Savings state={state} updateState={updateState} />;
-      case 'reports': return <Reports state={state} />;
-      case 'settings': return <Settings state={state} updateState={updateState} onLogout={handleLogout} />;
-      default: return <Dashboard state={state} />;
-    }
-  };
-
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col sticky top-0 h-screen">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-            <TrendingUp size={24} />
-          </div>
-          <div>
-            <h1 className="font-bold text-slate-800 text-lg leading-tight">KwanzaPlan</h1>
-            <p className="text-slate-400 text-xs font-medium">Finanças Estruturadas</p>
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4 flex flex-col gap-1">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                activeTab === item.id 
-                ? 'bg-indigo-50 text-indigo-700 font-semibold shadow-sm' 
-                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`}
-            >
-              <item.icon size={20} className={activeTab === item.id ? 'text-indigo-600' : ''} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-slate-100">
-          <div className="bg-slate-900 rounded-xl p-4 text-white">
-            <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
-              <img src={user.avatar} className="w-8 h-8 rounded-full border border-white/20" alt="avatar" />
-              <div className="overflow-hidden">
-                <p className="text-xs font-bold truncate">{user.name}</p>
-                <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
-              </div>
+    <div className="flex flex-col md:flex-row min-h-screen bg-[#FDFDFF] text-slate-900">
+      <aside className="hidden md:flex w-72 bg-white border-r border-slate-100 flex-col sticky top-0 h-screen shadow-sm">
+        <div className="p-10">
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
+              <TrendingUp size={24} />
             </div>
-            <p className="text-slate-400 text-xs mb-1">Regra de Poupança</p>
-            <p className="font-bold text-lg">{state.settings.savingsPercentageRule}%</p>
-            <button 
-              onClick={handleLogout}
-              className="mt-4 flex items-center gap-2 text-[10px] text-slate-400 hover:text-rose-400 transition-colors uppercase font-black tracking-widest"
-            >
-              <LogOut size={12} />
-              Terminar Sessão
-            </button>
+            <span className="text-2xl font-black tracking-tighter">Budgi.</span>
+          </div>
+          
+          <nav className="space-y-2">
+            {menuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-bold text-sm ${
+                  activeTab === item.id 
+                  ? 'bg-slate-900 text-white shadow-xl shadow-slate-200' 
+                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                }`}
+              >
+                <item.icon size={20} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="mt-auto p-10 space-y-4">
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-bold text-sm ${
+              activeTab === 'settings' ? 'bg-slate-900 text-white' : 'text-slate-400 hover:bg-slate-50'
+            }`}
+          >
+            <SettingsIcon size={20} />
+            Ajustes
+          </button>
+          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl">
+            <img src={user.avatar} className="w-10 h-10 rounded-xl shadow-sm" alt="profile" />
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-black truncate">{user.name}</p>
+              <button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase hover:underline">Sair</button>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
-            <TrendingUp size={18} />
-          </div>
-          <h1 className="font-bold text-slate-800 text-sm">KwanzaPlan</h1>
-        </div>
-        <div className="flex items-center gap-3">
-           <p className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{activeTab.toUpperCase()}</p>
-           <img src={user.avatar} className="w-8 h-8 rounded-full border border-slate-200" alt="avatar" />
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-0">
-        <header className="hidden md:block bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-10 backdrop-blur-md bg-white/80">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800">
-                {menuItems.find(i => i.id === activeTab)?.label}
-              </h2>
-              <p className="text-slate-500 text-sm mt-1">Gestão inteligente para {user.name}.</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="p-4 md:p-8">
-          {renderContent()}
+      <main className="flex-1 overflow-y-auto pb-32 md:pb-0">
+        <div className="p-6 md:p-12 max-w-6xl mx-auto">
+          {activeTab === 'dashboard' && <Dashboard state={state} updateState={updateState} onAddTransaction={addTransaction} />}
+          {activeTab === 'savings' && <Savings state={state} updateState={updateState} />}
+          {activeTab === 'goals' && <Goals state={state} updateState={updateState} />}
+          {activeTab === 'activities' && <Activities state={state} updateState={updateState} />}
+          {activeTab === 'reports' && <Reports state={state} />}
+          {activeTab === 'settings' && <Settings state={state} updateState={updateState} onLogout={handleLogout} />}
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-3 z-40 flex justify-around items-center safe-area-bottom">
-        {menuItems.slice(0, 5).map((item) => (
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-50 flex justify-around items-center rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        {menuItems.slice(0, 4).map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`flex flex-col items-center gap-1 transition-all duration-200 ${
-              activeTab === item.id ? 'text-indigo-600' : 'text-slate-400'
-            }`}
+            className={`p-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}
           >
-            <item.icon size={22} className={activeTab === item.id ? 'scale-110' : ''} />
-            <span className="text-[10px] font-bold">{item.label}</span>
+            <item.icon size={24} />
           </button>
         ))}
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center gap-1 transition-all duration-200 ${
-            activeTab === 'settings' ? 'text-indigo-600' : 'text-slate-400'
-          }`}
-        >
-          <SettingsIcon size={22} className={activeTab === 'settings' ? 'scale-110' : ''} />
-          <span className="text-[10px] font-bold">Ajustes</span>
-        </button>
       </nav>
     </div>
   );

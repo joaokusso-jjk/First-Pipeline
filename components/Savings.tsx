@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { AppState, SavingsLog, Account } from '../types';
-import { formatKz, formatEur, getCurrentMonthStr } from '../utils';
-import { Shield, Globe, Plus, Trash2, History, Coins, Banknote, Building2, CheckCircle2, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { AppState, Account, TransactionType, Category, Status } from '../types';
+import { formatKz, formatEur, convertToKz } from '../utils';
+import { EUR_TO_AOA_RATE } from '../constants';
+import { Shield, TrendingUp, ArrowRight, Coins, History, CheckCircle2, AlertCircle, Wallet, RefreshCw } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -10,241 +11,236 @@ interface Props {
 }
 
 const Savings: React.FC<Props> = ({ state, updateState }) => {
-  const [kzValue, setKzValue] = useState<number>(state.settings.mandatorySavings);
-  const [eurValue, setEurValue] = useState<number>(0);
+  const [amount, setAmount] = useState<number>(0);
+  const [targetAccountId, setTargetAccountId] = useState<string>('');
   
-  const [kzReserveAccountId, setKzReserveAccountId] = useState<string>('');
-  const [kzSurplusAccountId, setKzSurplusAccountId] = useState<string>('');
-  const [eurAccountId, setEurAccountId] = useState<string>('');
+  const allAccounts = state.accounts;
+  const savingsAccounts = allAccounts.filter(a => a.isSavingsAccount);
   
-  const currentMonth = getCurrentMonthStr();
-  const { settings, accounts } = state;
+  // Reserva Consolidada (Somando Kz e EUR convertido)
+  const totalReserveKz = savingsAccounts.reduce((acc, curr) => acc + convertToKz(curr.balance, curr.currency), 0);
 
-  const kzAccounts = accounts.filter(a => a.currency === 'Kz');
-  const eurAccounts = accounts.filter(a => a.currency === 'EUR');
-
-  const remainingForEmergency = Math.max(0, settings.emergencyFundTarget - state.emergencyFundCurrent);
-  const allocatedToEmergency = Math.min(kzValue, remainingForEmergency);
-  const surplusValue = Math.max(0, kzValue - allocatedToEmergency);
-
-  useEffect(() => {
-    if (kzAccounts.length > 0) {
-      if (!kzReserveAccountId) setKzReserveAccountId(kzAccounts[0].id);
-      if (!kzSurplusAccountId) setKzSurplusAccountId(kzAccounts[0].id);
-    }
-    if (eurAccounts.length > 0 && !eurAccountId) {
-      setEurAccountId(eurAccounts[0].id);
-    }
-  }, [kzAccounts, eurAccounts]);
-
-  const confirmKzSavings = () => {
-    if (kzValue <= 0) return alert("Insira um valor.");
-    if (allocatedToEmergency > 0 && !kzReserveAccountId) return alert("Selecione a conta para a Reserva.");
-    if (surplusValue > 0 && !kzSurplusAccountId) return alert("Selecione a conta para o Excedente.");
-
-    updateState(prev => {
-      let newAccounts = [...prev.accounts];
-      if (allocatedToEmergency > 0) {
-        newAccounts = newAccounts.map(acc => acc.id === kzReserveAccountId ? { ...acc, balance: acc.balance + allocatedToEmergency } : acc);
-      }
-      if (surplusValue > 0) {
-        newAccounts = newAccounts.map(acc => acc.id === kzSurplusAccountId ? { ...acc, balance: acc.balance + surplusValue } : acc);
-      }
-      const newLog: SavingsLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        month: currentMonth,
-        amountPoured: kzValue,
-        currency: 'Kz',
-        allocatedToEmergency,
-        targetAccountId: kzReserveAccountId,
-        surplusAccountId: surplusValue > 0 ? kzSurplusAccountId : undefined
-      };
-      return {
-        ...prev,
-        emergencyFundCurrent: prev.emergencyFundCurrent + allocatedToEmergency,
-        accounts: newAccounts,
-        savings: [newLog, ...prev.savings]
-      };
-    });
-    setKzValue(settings.mandatorySavings);
-    alert("Poupança registada!");
-  };
-
-  const confirmEurSavings = () => {
-    if (eurValue <= 0) return alert("Insira um valor.");
-    if (!eurAccountId) return alert("Selecione a conta.");
+  const toggleSavingsAccount = (id: string) => {
     updateState(prev => ({
       ...prev,
-      accounts: prev.accounts.map(acc => acc.id === eurAccountId ? { ...acc, balance: acc.balance + eurValue } : acc),
-      savings: [{
-        id: Math.random().toString(36).substr(2, 9),
-        month: currentMonth,
-        amountPoured: eurValue,
-        currency: 'EUR',
-        allocatedToEmergency: 0,
-        targetAccountId: eurAccountId
-      }, ...prev.savings]
+      accounts: prev.accounts.map(a => a.id === id ? { ...a, isSavingsAccount: !a.isSavingsAccount } : a)
     }));
-    setEurValue(0);
-    alert("Poupança EUR registada!");
   };
 
-  const deleteLog = (logId: string) => {
-    if (!confirm("Reverter saldos?")) return;
-    updateState(prev => {
-      const log = prev.savings.find(s => s.id === logId);
-      if (!log) return prev;
-      let newAccounts = [...prev.accounts];
-      if (log.currency === 'Kz') {
-        const surplusAmt = log.amountPoured - log.allocatedToEmergency;
-        if (log.allocatedToEmergency > 0) {
-          newAccounts = newAccounts.map(acc => acc.id === log.targetAccountId ? { ...acc, balance: acc.balance - log.allocatedToEmergency } : acc);
-        }
-        if (surplusAmt > 0 && log.surplusAccountId) {
-          newAccounts = newAccounts.map(acc => acc.id === log.surplusAccountId ? { ...acc, balance: acc.balance - surplusAmt } : acc);
-        }
-      } else {
-        newAccounts = newAccounts.map(acc => acc.id === log.targetAccountId ? { ...acc, balance: acc.balance - log.amountPoured } : acc);
-      }
-      return {
-        ...prev,
-        emergencyFundCurrent: prev.emergencyFundCurrent - log.allocatedToEmergency,
-        accounts: newAccounts,
-        savings: prev.savings.filter(s => s.id !== logId)
-      };
-    });
+  const handleDepositToReserve = () => {
+    const account = allAccounts.find(a => a.id === targetAccountId);
+    if (!account || amount <= 0) {
+      return alert("Selecione uma conta de destino e insira um valor válido.");
+    }
+    
+    updateState(prev => ({
+      ...prev,
+      accounts: prev.accounts.map(acc => 
+        acc.id === targetAccountId 
+          ? { ...acc, balance: acc.balance + amount } 
+          : acc
+      ),
+      transactions: [{
+        id: Math.random().toString(36).substr(2, 9),
+        description: `Reforço Poupança (${account.currency})`,
+        amount: amount,
+        date: new Date().toISOString(),
+        type: TransactionType.INCOME,
+        category: Category.INVESTIMENTOS,
+        accountId: targetAccountId,
+        status: Status.CONCLUIDA
+      }, ...prev.transactions]
+    }));
+    setAmount(0);
+    alert(`Aporte de ${account.currency === 'Kz' ? formatKz(amount) : formatEur(amount)} realizado!`);
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Kwanza */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <Coins className="text-amber-500" size={24} />
-            <h3 className="text-lg font-black text-slate-800">Poupança Kz</h3>
+    <div className="space-y-12 animate-in fade-in duration-500 pb-20">
+      {/* Header and Account Selection */}
+      <div className="bg-white p-12 rounded-[56px] border border-slate-50 shadow-sm flex flex-col lg:flex-row justify-between items-start gap-12">
+        <div className="max-w-xl">
+          <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-4">Fontes de Reserva Multimoeda</h2>
+          <p className="text-slate-500 font-bold leading-relaxed mb-6">
+            Pode marcar qualquer uma das suas carteiras como <span className="text-indigo-600">Reserva Financeira</span>. 
+            O Budgi irá consolidar os valores em Kwanzas automaticamente.
+          </p>
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+            <RefreshCw size={14} className="animate-spin-slow" /> Câmbio de Referência: 1€ = {formatKz(EUR_TO_AOA_RATE)}
           </div>
+        </div>
+        
+        <div className="w-full lg:w-[450px] space-y-4">
+          <div className="bg-slate-50 p-8 rounded-[40px] border border-slate-100">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-6">Todas as suas Carteiras</label>
+            <div className="space-y-3">
+              {allAccounts.map(acc => (
+                <button 
+                  key={acc.id}
+                  onClick={() => toggleSavingsAccount(acc.id)}
+                  className={`w-full flex items-center justify-between p-5 rounded-[24px] border transition-all ${
+                    acc.isSavingsAccount 
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-100' 
+                      : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Wallet size={20} className={acc.isSavingsAccount ? 'text-white/80' : 'text-slate-300'} />
+                    <span className="font-black text-sm">{acc.name}</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`text-[10px] font-black ${acc.isSavingsAccount ? 'text-white/70' : 'text-slate-400'}`}>
+                      {acc.currency === 'Kz' ? formatKz(acc.balance) : formatEur(acc.balance)}
+                    </span>
+                    {acc.isSavingsAccount ? <CheckCircle2 size={20} /> : <div className="w-5 h-5 border-2 border-slate-200 rounded-full" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div className="space-y-6">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Montante (Kz)</label>
-              <input 
-                type="number" 
-                value={kzValue || ''}
-                onChange={e => setKzValue(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-black text-xl text-slate-800"
-              />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        {/* Consolidated Progress Card */}
+        <div className="lg:col-span-2 bg-slate-900 rounded-[56px] p-12 text-white relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500 rounded-full blur-[140px] opacity-20 -mr-40 -mt-40"></div>
+          
+          <div className="relative z-10 space-y-10">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-emerald-400 text-[10px] font-black uppercase tracking-[3px] mb-3">Total Consolidado de Reservas (Est. Kz)</p>
+                <h3 className="text-6xl font-black tracking-tighter">
+                  {formatKz(totalReserveKz)}
+                </h3>
+              </div>
+              <div className="p-6 bg-white/10 rounded-[32px] backdrop-blur-md border border-white/10">
+                <Shield className="text-emerald-400" size={40} />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className={`p-4 rounded-2xl border ${allocatedToEmergency > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 opacity-50'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <Shield size={14} className="text-emerald-600" />
-                  <span className="text-[9px] font-black uppercase text-emerald-700">Reserva</span>
-                </div>
-                <p className="text-sm font-black">{formatKz(allocatedToEmergency)}</p>
-                {allocatedToEmergency > 0 && (
-                  <select 
-                    value={kzReserveAccountId}
-                    onChange={e => setKzReserveAccountId(e.target.value)}
-                    className="mt-2 w-full bg-white border border-emerald-100 text-[10px] py-1 px-1 rounded-lg"
-                  >
-                    {kzAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                  </select>
-                )}
+            <div className="space-y-6">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black text-white/50 uppercase tracking-widest">Meta de Segurança de {formatKz(state.settings.emergencyFundTarget)}</span>
+                <span className="text-4xl font-black text-emerald-400">
+                  {Math.min((totalReserveKz / state.settings.emergencyFundTarget) * 100, 100).toFixed(0)}%
+                </span>
               </div>
-
-              <div className={`p-4 rounded-2xl border ${surplusValue > 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 opacity-50'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <ArrowRight size={14} className="text-indigo-600" />
-                  <span className="text-[9px] font-black uppercase text-indigo-700">Excedente</span>
-                </div>
-                <p className="text-sm font-black">{formatKz(surplusValue)}</p>
-                {surplusValue > 0 && (
-                  <select 
-                    value={kzSurplusAccountId}
-                    onChange={e => setKzSurplusAccountId(e.target.value)}
-                    className="mt-2 w-full bg-white border border-indigo-100 text-[10px] py-1 px-1 rounded-lg"
-                  >
-                    {kzAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
-                  </select>
-                )}
+              <div className="h-6 w-full bg-white/10 rounded-full overflow-hidden border border-white/5 p-1">
+                <div 
+                  className="h-full bg-emerald-500 transition-all duration-1000 ease-out rounded-full shadow-[0_0_35px_rgba(16,185,129,0.5)]"
+                  style={{ width: `${Math.min((totalReserveKz / state.settings.emergencyFundTarget) * 100, 100)}%` }}
+                />
               </div>
             </div>
 
-            <button 
-              onClick={confirmKzSavings}
-              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg"
-            >
-              Lançar Kz
-            </button>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
+              <div className="bg-white/5 p-7 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-white/40 uppercase mb-3 tracking-widest">Fontes</p>
+                <p className="text-2xl font-black">{savingsAccounts.length} Carteiras</p>
+              </div>
+              <div className="bg-white/5 p-7 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-white/40 uppercase mb-3 tracking-widest">Meta Mensal</p>
+                <p className="text-2xl font-black">{formatKz(state.settings.mandatorySavings)}</p>
+              </div>
+              <div className="hidden lg:block bg-white/5 p-7 rounded-[32px] border border-white/5">
+                <p className="text-[10px] font-black text-white/40 uppercase mb-3 tracking-widest">Moedas</p>
+                <p className="text-2xl font-black">Kz + EUR</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Euro */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <Globe className="text-blue-500" size={24} />
-            <h3 className="text-lg font-black text-slate-800">Poupança €</h3>
+        {/* Multi-Account Deposit Card */}
+        <div className="bg-white p-12 rounded-[56px] border border-slate-100 shadow-sm space-y-10">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-[28px] flex items-center justify-center">
+              <Coins size={32} />
+            </div>
+            <h4 className="text-2xl font-black text-slate-900 tracking-tight">Reforçar Fundo</h4>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-8">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Montante (€)</label>
-              <input 
-                type="number" 
-                value={eurValue || ''}
-                onChange={e => setEurValue(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-black text-xl text-slate-800"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Destino (€)</label>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Carteira de Destino</label>
               <select 
-                value={eurAccountId}
-                onChange={e => setEurAccountId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold"
+                value={targetAccountId}
+                onChange={e => setTargetAccountId(e.target.value)}
+                className="w-full bg-slate-50 border-none px-6 py-5 rounded-3xl font-black text-slate-800 focus:ring-4 focus:ring-indigo-50 transition-all outline-none"
               >
-                {eurAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}
+                <option value="">Selecione...</option>
+                {savingsAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency})</option>
+                ))}
               </select>
             </div>
 
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                Valor do Aporte {targetAccountId ? `(${allAccounts.find(a => a.id === targetAccountId)?.currency})` : ''}
+              </label>
+              <input 
+                type="number" 
+                step="0.01"
+                value={amount || ''}
+                onChange={e => setAmount(Number(e.target.value))}
+                className="w-full bg-slate-50 border-none px-8 py-6 rounded-3xl font-black text-4xl text-slate-900 focus:ring-4 focus:ring-indigo-50"
+                placeholder="0.00"
+              />
+            </div>
+            
             <button 
-              onClick={confirmEurSavings}
-              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg"
+              onClick={handleDepositToReserve}
+              className="w-full bg-slate-900 text-white py-7 rounded-[32px] font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
             >
-              Lançar EUR
+              Confirmar Depósito <ArrowRight size={18} />
             </button>
+            
+            <p className="text-center text-[10px] font-bold text-slate-300 uppercase leading-relaxed tracking-widest">
+              * O saldo será atualizado na moeda nativa da carteira.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Histórico Simplificado Mobile */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-50 flex items-center gap-2">
-          <History size={18} className="text-slate-400" />
-          <h4 className="font-bold text-slate-800">Histórico</h4>
+      {/* History */}
+      <section>
+        <div className="flex items-center justify-between mb-8 px-6">
+          <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+            <History className="text-indigo-600" />
+            Movimentos de Reserva
+          </h3>
         </div>
         
-        <div className="divide-y divide-slate-50">
-          {state.savings.map(log => (
-            <div key={log.id} className="p-4 flex justify-between items-center">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">{log.month}</p>
-                <p className={`font-black ${log.currency === 'Kz' ? 'text-amber-600' : 'text-blue-600'}`}>
-                  {log.currency === 'Kz' ? formatKz(log.amountPoured) : formatEur(log.amountPoured)}
-                </p>
-              </div>
-              <button onClick={() => deleteLog(log.id)} className="p-2 text-rose-300">
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-          {state.savings.length === 0 && <p className="py-8 text-center text-slate-400 text-xs italic">Sem registos.</p>}
+        <div className="bg-white rounded-[56px] border border-slate-100 p-12 shadow-sm">
+          <div className="space-y-8">
+            {state.transactions.filter(t => t.category === Category.INVESTIMENTOS).slice(0, 5).map(t => {
+              const account = allAccounts.find(a => a.id === t.accountId);
+              return (
+                <div key={t.id} className="flex items-center justify-between group p-2 hover:bg-slate-50 rounded-[32px] transition-all">
+                  <div className="flex items-center gap-7">
+                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-[28px] flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
+                      <TrendingUp size={28} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-black text-slate-900">{t.description}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[2px] mt-1">
+                        {new Date(t.date).toLocaleDateString()} • {account?.name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-emerald-500">
+                      +{account?.currency === 'Kz' ? formatKz(t.amount) : formatEur(t.amount)}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Liquidez Confirmada</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

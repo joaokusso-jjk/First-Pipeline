@@ -1,4 +1,6 @@
 
+import { EUR_TO_AOA_RATE } from './constants';
+
 export const formatKz = (value: number) => {
   return new Intl.NumberFormat('pt-AO', {
     style: 'currency',
@@ -13,6 +15,11 @@ export const formatEur = (value: number) => {
     style: 'currency',
     currency: 'EUR',
   }).format(value);
+};
+
+export const convertToKz = (amount: number, currency: 'Kz' | 'EUR') => {
+  if (currency === 'Kz') return amount;
+  return amount * EUR_TO_AOA_RATE;
 };
 
 export const getMonthYear = (dateStr: string) => {

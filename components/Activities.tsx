@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { AppState, FinancialActivity, Category, Priority, Status } from '../types';
-import { formatKz, getCurrentMonthStr, getMonthYear } from '../utils';
-import { Plus, Trash2, Edit2, CheckCircle2, AlertCircle, Calendar, Info } from 'lucide-react';
+import { formatKz, formatEur, getCurrentMonthStr, getMonthYear } from '../utils';
+import { Plus, Trash2, Calendar, AlertCircle, ChevronDown, CheckCircle, Clock, Wallet, X } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -10,54 +10,26 @@ interface Props {
 }
 
 const Activities: React.FC<Props> = ({ state, updateState }) => {
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
   const [isAdding, setIsAdding] = useState(false);
-  const { settings } = state;
+  
+  const monthActivities = state.activities.filter(a => a.plannedMonth === selectedMonth);
+
   const [newActivity, setNewActivity] = useState<Partial<FinancialActivity>>({
     name: '',
     category: Category.PESSOAL,
-    subcategory: '',
     costEstimate: 0,
-    plannedMonth: getCurrentMonthStr(),
+    plannedMonth: selectedMonth,
     priority: Priority.MEDIA,
     status: Status.PLANEADA,
-    observations: ''
+    accountId: ''
   });
 
-  const checkHighCostViolation = (month: string, category: Category, currentId?: string) => {
-    const highCostInMonth = state.activities.filter(a => 
-      a.plannedMonth === month && 
-      a.category === category && 
-      a.costEstimate >= settings.highCostThreshold &&
-      a.id !== currentId
-    );
-    return highCostInMonth.length >= 1;
-  };
-
   const handleAdd = () => {
-    if (!newActivity.name || !newActivity.costEstimate || !newActivity.plannedMonth) return;
-
-    if (newActivity.costEstimate >= settings.highCostThreshold) {
-      if (checkHighCostViolation(newActivity.plannedMonth!, newActivity.category!)) {
-        alert(`Regra de Ouro: Máximo de uma atividade de alto custo (>= ${formatKz(settings.highCostThreshold)}) por categoria (${newActivity.category}) no mesmo mês.`);
-        return;
-      }
+    if (!newActivity.name || !newActivity.costEstimate || !newActivity.accountId) {
+      alert("Preencha o nome, o custo e selecione a conta de origem.");
+      return;
     }
-
-    // Check budget
-    const monthActivitiesTotal = state.activities
-      .filter(a => a.plannedMonth === newActivity.plannedMonth)
-      .reduce((acc, curr) => acc + curr.costEstimate, 0);
-    
-    const activeFixedTotal = state.fixedExpenses
-      .filter(e => e.active)
-      .reduce((acc, curr) => acc + curr.value, 0);
-
-    if (monthActivitiesTotal + activeFixedTotal + (newActivity.costEstimate || 0) > settings.monthlyBudgetLimit) {
-      if (!confirm(`O total de despesas planeadas para este mês ultrapassa o orçamento disponível (${formatKz(settings.monthlyBudgetLimit)}). Deseja continuar mesmo assim?`)) {
-        return;
-      }
-    }
-
     updateState(prev => ({
       ...prev,
       activities: [...prev.activities, {
@@ -66,23 +38,7 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
       }]
     }));
     setIsAdding(false);
-    setNewActivity({
-      name: '',
-      category: Category.PESSOAL,
-      subcategory: '',
-      costEstimate: 0,
-      plannedMonth: getCurrentMonthStr(),
-      priority: Priority.MEDIA,
-      status: Status.PLANEADA,
-      observations: ''
-    });
-  };
-
-  const deleteActivity = (id: string) => {
-    updateState(prev => ({
-      ...prev,
-      activities: prev.activities.filter(a => a.id !== id)
-    }));
+    setNewActivity({ ...newActivity, name: '', costEstimate: 0, accountId: '' });
   };
 
   const updateStatus = (id: string, status: Status) => {
@@ -92,195 +48,189 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
     }));
   };
 
+  const deleteActivity = (id: string) => {
+    if(confirm("Eliminar esta atividade?")) {
+      updateState(prev => ({
+        ...prev,
+        activities: prev.activities.filter(a => a.id !== id)
+      }));
+    }
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-slate-800">Atividades Financeiras</h3>
-          <p className="text-slate-500 text-sm">Planeie projetos de vida de forma organizada.</p>
+    <div className="space-y-12 animate-in fade-in duration-500 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-12 rounded-[56px] border border-slate-50 shadow-sm">
+        <div className="space-y-4">
+          <h2 className="text-4xl font-black text-slate-900 tracking-tighter">Atividades</h2>
+          <p className="text-slate-500 font-bold max-w-sm">Planeie os seus gastos futuros associados a cada carteira.</p>
         </div>
+        
+        <div className="flex flex-col gap-3 w-full md:w-auto">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[2px]">Mês de Planeamento</label>
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={e => {
+              setSelectedMonth(e.target.value);
+              setNewActivity(prev => ({ ...prev, plannedMonth: e.target.value }));
+            }}
+            className="px-8 py-5 rounded-[28px] bg-slate-50 border-none font-black text-slate-900 focus:ring-4 focus:ring-indigo-100 outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center mb-4 px-6">
+        <h3 className="text-2xl font-black text-slate-800 uppercase tracking-[4px]">{getMonthYear(selectedMonth)}</h3>
         <button 
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition-all font-bold shadow-lg shadow-indigo-100"
+          className="flex items-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-[28px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 hover:scale-105 transition-all"
         >
           <Plus size={20} />
-          Planear Atividade
+          Planear Movimento
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {state.activities.length === 0 && (
-          <div className="col-span-full py-20 bg-white rounded-3xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400">
-            <Calendar size={48} className="mb-4 opacity-20" />
-            <p className="text-lg font-medium">Nenhuma atividade planeada.</p>
-            <p className="text-sm">Clique no botão acima para começar o seu planeamento.</p>
+      <div className="space-y-6">
+        {monthActivities.length > 0 ? monthActivities.map(activity => {
+          const linkedAccount = state.accounts.find(a => a.id === activity.accountId);
+          return (
+            <div key={activity.id} className="bg-white p-10 rounded-[48px] border border-slate-50 shadow-sm hover:shadow-2xl transition-all flex flex-col md:flex-row items-center justify-between gap-8 group">
+              <div className="flex items-center gap-8 w-full md:w-auto">
+                <div className={`w-20 h-20 rounded-[32px] flex items-center justify-center transition-all ${
+                  activity.status === Status.CONCLUIDA ? 'bg-emerald-50 text-emerald-500' : 'bg-slate-50 text-slate-400'
+                }`}>
+                  {activity.status === Status.CONCLUIDA ? <CheckCircle size={32} /> : <Clock size={32} />}
+                </div>
+                <div>
+                  <h4 className="text-2xl font-black text-slate-900">{activity.name}</h4>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{activity.category}</span>
+                    {linkedAccount && (
+                      <span className="text-[9px] font-black bg-indigo-50 text-indigo-500 px-3 py-1 rounded-full flex items-center gap-1">
+                        <Wallet size={10} /> {linkedAccount.name}
+                      </span>
+                    )}
+                    <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                      activity.priority === Priority.ALTA ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-500'
+                    }`}>
+                      {activity.priority}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row items-center gap-12 w-full md:w-auto">
+                <div className="text-center md:text-right">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Custo Estimado</p>
+                  <p className="text-3xl font-black text-slate-900">
+                    {linkedAccount?.currency === 'EUR' ? formatEur(activity.costEstimate) : formatKz(activity.costEstimate)}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => updateStatus(activity.id, activity.status === Status.CONCLUIDA ? Status.PLANEADA : Status.CONCLUIDA)}
+                    className={`px-8 py-5 rounded-[24px] font-black text-[10px] uppercase tracking-widest transition-all ${
+                      activity.status === Status.CONCLUIDA ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-900 text-white'
+                    }`}
+                  >
+                    {activity.status === Status.CONCLUIDA ? 'Pago' : 'Marcar Pago'}
+                  </button>
+                  <button onClick={() => deleteActivity(activity.id)} className="p-5 text-slate-200 hover:text-rose-500 transition-colors">
+                    <Trash2 size={24} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="py-40 text-center bg-white border-4 border-dashed border-slate-50 rounded-[56px] text-slate-300">
+            <Calendar size={72} className="mx-auto mb-6 opacity-10" />
+            <p className="font-black text-xl uppercase tracking-[4px]">Nenhum gasto planeado</p>
+            <p className="mt-2 font-bold text-slate-400">Tudo sob controlo para este período.</p>
           </div>
         )}
-        
-        {state.activities.sort((a, b) => a.plannedMonth.localeCompare(b.plannedMonth)).map(activity => (
-          <div key={activity.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col">
-            <div className="p-5 flex-1">
-              <div className="flex justify-between items-start mb-3">
-                <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${
-                  activity.priority === Priority.ALTA ? 'bg-rose-100 text-rose-600' :
-                  activity.priority === Priority.MEDIA ? 'bg-amber-100 text-amber-600' :
-                  'bg-blue-100 text-blue-600'
-                }`}>
-                  {activity.priority}
-                </span>
-                <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                  <Calendar size={12} />
-                  {getMonthYear(activity.plannedMonth)}
-                </span>
-              </div>
-              <h4 className="text-lg font-bold text-slate-800 line-clamp-1">{activity.name}</h4>
-              <p className="text-xs text-slate-400 mb-4">{activity.category} • {activity.subcategory}</p>
-              
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm text-slate-500">Custo:</span>
-                <span className="text-lg font-black text-slate-800">{formatKz(activity.costEstimate)}</span>
-                {/* Fixed: Wrapped AlertCircle in a span to use the title attribute correctly */}
-                {activity.costEstimate >= settings.highCostThreshold && (
-                  <span title="Alto Custo">
-                    <AlertCircle size={14} className="text-rose-500" />
-                  </span>
-                )}
-              </div>
-
-              {activity.observations && (
-                <div className="bg-slate-50 p-3 rounded-lg text-xs text-slate-500 italic mb-4">
-                  "{activity.observations}"
-                </div>
-              )}
-            </div>
-
-            <div className="px-5 py-4 bg-slate-50 flex items-center justify-between border-t border-slate-100">
-              <select 
-                value={activity.status}
-                onChange={e => updateStatus(activity.id, e.target.value as Status)}
-                className="text-xs font-bold bg-transparent border-none focus:ring-0 text-slate-600 cursor-pointer"
-              >
-                {Object.values(Status).map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => deleteActivity(activity.id)}
-                  className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {isAdding && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-slate-800">Planear Nova Atividade</h3>
-              <div className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold">REGRAS ATIVAS</div>
-            </div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
+          <div className="bg-white rounded-[64px] w-full max-w-2xl p-14 shadow-2xl animate-in zoom-in-95 duration-300 relative">
+            <button onClick={() => setIsAdding(false)} className="absolute top-10 right-10 text-slate-300 hover:text-slate-900 transition-colors">
+              <X size={28} />
+            </button>
+            <h3 className="text-4xl font-black text-slate-900 mb-12 tracking-tight">Planear Atividade</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nome da Atividade</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Nome do Plano</label>
                   <input 
                     type="text" 
                     value={newActivity.name}
                     onChange={e => setNewActivity({...newActivity, name: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                    placeholder="Ex: Revisão do motor"
+                    className="w-full bg-slate-50 border-none px-8 py-6 rounded-[32px] font-black text-slate-900"
+                    placeholder="Ex: Consultas Médicas"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categoria</label>
-                    <select 
-                      value={newActivity.category}
-                      onChange={e => setNewActivity({...newActivity, category: e.target.value as Category})}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white"
-                    >
-                      {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Subcategoria</label>
-                    <input 
-                      type="text" 
-                      value={newActivity.subcategory}
-                      onChange={e => setNewActivity({...newActivity, subcategory: e.target.value})}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200"
-                      placeholder="Ex: Segurança"
-                    />
-                  </div>
-                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Custo Estimado (Kz)</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Custo Estimado</label>
                   <input 
                     type="number" 
                     value={newActivity.costEstimate || ''}
                     onChange={e => setNewActivity({...newActivity, costEstimate: Number(e.target.value)})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 font-bold"
+                    className="w-full bg-slate-50 border-none px-8 py-6 rounded-[32px] font-black text-indigo-600 text-2xl"
                   />
-                  {newActivity.costEstimate! >= settings.highCostThreshold && (
-                    <p className="text-[10px] text-rose-500 font-bold mt-1 uppercase">Atividade de Alto Custo - Verificação de Regras Ativa</p>
-                  )}
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Mês Planeado</label>
-                  <input 
-                    type="month" 
-                    value={newActivity.plannedMonth}
-                    onChange={e => setNewActivity({...newActivity, plannedMonth: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200"
-                  />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Categoria</label>
+                  <select 
+                    value={newActivity.category}
+                    onChange={e => setNewActivity({...newActivity, category: e.target.value as Category})}
+                    className="w-full bg-slate-50 border-none px-8 py-6 rounded-[32px] font-black text-slate-900"
+                  >
+                    {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Prioridade</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {Object.values(Priority).map(p => (
-                      <button
-                        key={p}
-                        onClick={() => setNewActivity({...newActivity, priority: p})}
-                        className={`py-2 rounded-lg text-xs font-bold transition-all border ${
-                          newActivity.priority === p 
-                          ? 'bg-indigo-600 text-white border-indigo-600' 
-                          : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
-                        }`}
-                      >
-                        {p}
-                      </button>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Fonte de Fundos (Conta)</label>
+                  <select 
+                    value={newActivity.accountId}
+                    onChange={e => setNewActivity({...newActivity, accountId: e.target.value})}
+                    className="w-full bg-slate-50 border-none px-8 py-6 rounded-[32px] font-black text-slate-900"
+                  >
+                    <option value="">Selecionar Conta...</option>
+                    {state.accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency})</option>
                     ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Observações</label>
-                  <textarea 
-                    value={newActivity.observations}
-                    onChange={e => setNewActivity({...newActivity, observations: e.target.value})}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 min-h-[100px]"
-                    placeholder="Detalhes adicionais..."
-                  />
+                  </select>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-4 mt-8 border-t border-slate-100 pt-6">
-              <button 
-                onClick={() => setIsAdding(false)}
-                className="flex-1 px-6 py-4 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50"
-              >
-                Descartar
-              </button>
+            <div className="mt-10">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Prioridade do Gasto</label>
+              <div className="flex gap-4">
+                {Object.values(Priority).map(p => (
+                  <button 
+                    key={p} 
+                    onClick={() => setNewActivity({...newActivity, priority: p})}
+                    className={`flex-1 py-5 rounded-[24px] font-black text-[10px] uppercase tracking-widest border-2 transition-all ${
+                      newActivity.priority === p ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200' : 'bg-transparent text-slate-400 border-slate-100'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-12">
               <button 
                 onClick={handleAdd}
-                className="flex-1 px-6 py-4 rounded-2xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-100"
+                className="w-full bg-indigo-600 text-white py-7 rounded-[32px] font-black text-xs uppercase tracking-[3px] shadow-2xl hover:scale-105 transition-all"
               >
                 Confirmar Planeamento
               </button>

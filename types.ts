@@ -4,15 +4,19 @@ export enum Category {
   CASA = 'Casa',
   PESSOAL = 'Pessoal',
   RELACAO = 'Relação',
-  INVESTIMENTOS = 'Investimentos'
+  INVESTIMENTOS = 'Investimentos',
+  SAUDE = 'Saúde',
+  LAZER = 'Lazer',
+  ALIMENTACAO = 'Alimentação',
+  SALARIO = 'Salário',
+  OUTROS = 'Outros'
 }
 
-export enum FixedCategory {
-  HABITACAO = 'Habitação',
-  SERVICOS = 'Serviços',
-  TRANSPORTE = 'Transporte',
-  ASSINATURAS = 'Assinaturas',
-  OUTROS = 'Outros'
+export enum TransactionType {
+  INCOME = 'Receita',
+  EXPENSE = 'Despesa',
+  TRANSFER = 'Transferência',
+  ADJUSTMENT = 'Reajuste'
 }
 
 export enum Priority {
@@ -22,23 +26,18 @@ export enum Priority {
 }
 
 export enum Status {
-  PLANEADA = 'Planeada',
-  EM_EXECUCAO = 'Em execução',
-  CONCLUIDA = 'Concluída'
+  PENDENTE = 'Pendente',
+  CONCLUIDA = 'Concluída',
+  PLANEADA = 'Planeada'
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-}
-
-export interface Account {
-  id: string;
-  name: string;
-  currency: 'Kz' | 'EUR';
-  balance: number;
+export enum FixedCategory {
+  CASA = 'Casa',
+  SERVICOS = 'Serviços',
+  ASSINATURAS = 'Assinaturas',
+  EDUCAO = 'Educação',
+  SAUDE = 'Saúde',
+  OUTROS = 'Outros'
 }
 
 export interface FixedExpense {
@@ -53,22 +52,58 @@ export interface FinancialActivity {
   id: string;
   name: string;
   category: Category;
-  subcategory: string;
   costEstimate: number;
-  plannedMonth: string; // YYYY-MM
+  plannedMonth: string;
   priority: Priority;
   status: Status;
-  observations: string;
+  accountId?: string; // Conta vinculada à atividade
 }
 
-export interface SavingsLog {
+export interface Transaction {
   id: string;
-  month: string; // YYYY-MM
+  description: string;
+  amount: number;
+  date: string;
+  type: TransactionType;
+  category: Category;
+  accountId: string;
+  toAccountId?: string;
+  status: Status;
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  deadline: string;
+  category: Category;
+  color: string;
+  accountId?: string; // Conta onde o dinheiro da meta está guardado
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  currency: 'Kz' | 'EUR';
+  balance: number;
+  includeInTotal: boolean;
+  isSavingsAccount: boolean;
+  color?: string;
+}
+
+export interface SavingRecord {
+  id: string;
+  month: string;
   amountPoured: number;
   currency: 'Kz' | 'EUR';
-  allocatedToEmergency: number;
-  targetAccountId: string; // Conta principal ou conta da reserva
-  surplusAccountId?: string; // Conta para o excedente (se houver split)
 }
 
 export interface AppSettings {
@@ -78,16 +113,17 @@ export interface AppSettings {
   emergencyFundTarget: number;
   monthlyBudgetLimit: number;
   fixedExpensesLimit: number;
-  highCostThreshold: number;
-  initialEurBalance: number;
 }
 
 export interface AppState {
   user: User | null;
   accounts: Account[];
-  fixedExpenses: FixedExpense[];
   activities: FinancialActivity[];
-  savings: SavingsLog[];
+  goals: Goal[];
+  transactions: Transaction[];
+  fixedExpenses: FixedExpense[];
+  savings: SavingRecord[];
   emergencyFundCurrent: number;
+  savingsAccountId?: string;
   settings: AppSettings;
 }
