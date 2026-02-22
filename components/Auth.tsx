@@ -22,13 +22,36 @@ const Auth: React.FC<Props> = ({ onLogin }) => {
     
     // Simulando delay de rede para experiência real
     setTimeout(() => {
-      const mockUser: User = {
-        id: formData.email.replace(/[^a-zA-Z0-9]/g, '_'), // ID baseado no email para persistência
-        name: formData.name || formData.email.split('@')[0],
-        email: formData.email,
-        avatar: `https://ui-avatars.com/api/?name=${formData.name || formData.email}&background=6366f1&color=fff`
-      };
-      onLogin(mockUser);
+      const usersKey = 'kwanza_plan_users';
+      const savedUsers: User[] = JSON.parse(localStorage.getItem(usersKey) || '[]');
+      
+      if (isLogin) {
+        const existingUser = savedUsers.find(u => u.email === formData.email);
+        if (existingUser) {
+          onLogin(existingUser);
+        } else {
+          alert('Esta conta não existe. Por favor, crie uma conta primeiro.');
+          setIsLogin(false);
+        }
+      } else {
+        // Registro
+        const userExists = savedUsers.some(u => u.email === formData.email);
+        if (userExists) {
+          alert('Este e-mail já está registado. Faça login.');
+          setIsLogin(true);
+        } else {
+          const newUser: User = {
+            id: formData.email.replace(/[^a-zA-Z0-9]/g, '_'),
+            name: formData.name || formData.email.split('@')[0],
+            email: formData.email,
+            avatar: `https://ui-avatars.com/api/?name=${formData.name || formData.email}&background=6366f1&color=fff`
+          };
+          
+          const updatedUsers = [...savedUsers, newUser];
+          localStorage.setItem(usersKey, JSON.stringify(updatedUsers));
+          onLogin(newUser);
+        }
+      }
       setLoading(false);
     }, 1500);
   };

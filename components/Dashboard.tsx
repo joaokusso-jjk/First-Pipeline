@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, Account, Transaction, TransactionType, Category, Status } from '../types';
 import { formatKz, formatEur, convertToKz } from '../utils';
 import { EUR_TO_AOA_RATE } from '../constants';
@@ -21,7 +21,8 @@ import {
   Trash2,
   AlertCircle,
   Coins,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -35,6 +36,23 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
   const [showAccModal, setShowAccModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+
+  // Onboarding: Se não houver contas, abrir modal de criação
+  useEffect(() => {
+    if (state.accounts.length === 0) {
+      const timer = setTimeout(() => setShowAccModal(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.accounts.length]);
+
+  const handleOpClick = (type: TransactionType) => {
+    if (state.accounts.length === 0) {
+      alert("Crie uma carteira primeiro para poder registar movimentos.");
+      setShowAccModal(true);
+      return;
+    }
+    setShowOpModal(type);
+  };
 
   // Balanço Consolidado (Tudo convertido para Kz)
   const totalBalanceKz = state.accounts
@@ -95,14 +113,14 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
       {/* Top Section: Consolidated Balance */}
-      <div className="relative overflow-hidden bg-slate-900 rounded-[48px] p-10 md:p-14 text-white shadow-2xl">
+      <div className="relative overflow-hidden bg-slate-900 rounded-3xl md:rounded-[48px] p-6 md:p-14 text-white shadow-2xl">
         <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500 rounded-full blur-[120px] opacity-20 -mr-40 -mt-40"></div>
         <div className="relative z-10">
           <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
             <div>
               <p className="text-indigo-300 text-[10px] font-black uppercase tracking-[3px] mb-2">Património Consolidado (Est.)</p>
               <div className="flex items-center gap-4">
-                <h1 className="text-5xl md:text-7xl font-black tracking-tighter">
+                <h1 className="text-4xl md:text-7xl font-black tracking-tighter">
                   {isBalanceVisible ? formatKz(totalBalanceKz) : "••••••"}
                 </h1>
                 <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="text-white/40 hover:text-white transition-colors">
@@ -113,22 +131,22 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
                 <RefreshCw size={12} /> Câmbio BAI: 1€ = {formatKz(EUR_TO_AOA_RATE)}
               </div>
             </div>
-            <div className="bg-white/10 backdrop-blur-md px-10 py-6 rounded-[40px] border border-white/10">
+            <div className="bg-white/10 backdrop-blur-md px-6 md:px-10 py-4 md:py-6 rounded-2xl md:rounded-[40px] border border-white/10 w-full lg:w-auto">
               <p className="text-[10px] font-bold text-white/50 uppercase mb-2 tracking-widest">Reserva Ativa Total</p>
-              <p className="text-3xl font-black text-emerald-400">
+              <p className="text-2xl md:text-3xl font-black text-emerald-400">
                 {isBalanceVisible ? formatKz(activeReserveKz) : "••••••"}
               </p>
             </div>
           </div>
           
-          <div className="flex gap-4 mt-12">
-            <button onClick={() => setShowOpModal(TransactionType.INCOME)} className="flex-1 bg-white text-slate-900 py-5 rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg">
+          <div className="flex flex-col sm:flex-row gap-4 mt-8 md:mt-12">
+            <button onClick={() => handleOpClick(TransactionType.INCOME)} className="flex-1 bg-white text-slate-900 py-4 md:py-5 rounded-2xl md:rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg">
               <Plus size={18} className="text-emerald-500" /> Receita
             </button>
-            <button onClick={() => setShowOpModal(TransactionType.EXPENSE)} className="flex-1 bg-white text-slate-900 py-5 rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg">
+            <button onClick={() => handleOpClick(TransactionType.EXPENSE)} className="flex-1 bg-white text-slate-900 py-4 md:py-5 rounded-2xl md:rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg">
               <Minus size={18} className="text-rose-500" /> Despesa
             </button>
-            <button onClick={() => setShowOpModal(TransactionType.TRANSFER)} className="flex-1 bg-white/10 text-white py-5 rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 transition-all">
+            <button onClick={() => handleOpClick(TransactionType.TRANSFER)} className="flex-1 bg-white/10 text-white py-4 md:py-5 rounded-2xl md:rounded-[28px] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white/20 transition-all">
               <ArrowRightLeft size={18} /> Transferir
             </button>
           </div>
@@ -147,34 +165,34 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
           </button>
         </div>
         
-        <div className="flex gap-6 overflow-x-auto pb-6 scrollbar-hide">
+        <div className="flex flex-wrap gap-6 pb-6 scrollbar-hide">
           {state.accounts.map(acc => (
             <button 
               key={acc.id} 
               onClick={() => setEditingAccount(acc)}
-              className="min-w-[320px] bg-white p-10 rounded-[56px] border border-slate-100 shadow-sm relative group text-left hover:shadow-2xl hover:-translate-y-2 transition-all"
+              className="flex-1 min-w-[280px] md:min-w-[320px] bg-white p-6 md:p-10 rounded-3xl md:rounded-[56px] border border-slate-100 shadow-sm relative group text-left hover:shadow-2xl hover:-translate-y-2 transition-all"
             >
-              <div className="absolute top-8 right-8 flex gap-3">
+              <div className="absolute top-6 right-6 md:top-8 md:right-8 flex gap-3">
                 {acc.isSavingsAccount && (
-                  <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center shadow-sm" title="Reserva Ativa">
-                    <Coins size={20} />
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center shadow-sm" title="Reserva Ativa">
+                    <Coins size={18} />
                   </div>
                 )}
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${acc.includeInTotal ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}>
-                  <ShieldCheck size={20} />
+                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all ${acc.includeInTotal ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}>
+                  <ShieldCheck size={18} />
                 </div>
               </div>
 
-              <div className="w-16 h-16 rounded-[24px] mb-8 flex items-center justify-center" style={{ backgroundColor: (acc.color || '#6366f1') + '15', color: acc.color }}>
-                <Wallet size={32} />
+              <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-[24px] mb-6 md:mb-8 flex items-center justify-center" style={{ backgroundColor: (acc.color || '#6366f1') + '15', color: acc.color }}>
+                <Wallet size={24} md:size={32} />
               </div>
               
-              <h4 className="font-black text-slate-800 text-2xl mb-1">{acc.name}</h4>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">{acc.currency === 'Kz' ? 'Kwanza Angolano' : 'Euro Continental'}</p>
+              <h4 className="font-black text-slate-800 text-xl md:text-2xl mb-1">{acc.name}</h4>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 md:mb-8">{acc.currency === 'Kz' ? 'Kwanza Angolano' : 'Euro Continental'}</p>
               
-              <div className="flex items-end justify-between border-t border-slate-50 pt-6">
+              <div className="flex items-end justify-between border-t border-slate-50 pt-4 md:pt-6">
                 <div>
-                  <p className="text-3xl font-black text-slate-900 tracking-tighter">
+                  <p className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter">
                     {isBalanceVisible ? (acc.currency === 'Kz' ? formatKz(acc.balance) : formatEur(acc.balance)) : "••••••"}
                   </p>
                   {acc.currency === 'EUR' && isBalanceVisible && (
@@ -185,6 +203,13 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
               </div>
             </button>
           ))}
+          {state.accounts.length === 0 && (
+            <div className="w-full py-20 text-center bg-white border-2 border-dashed border-slate-100 rounded-3xl text-slate-300">
+              <Sparkles size={48} className="mx-auto mb-4 opacity-20" />
+              <p className="font-black text-sm uppercase tracking-widest">Nenhuma carteira ativa</p>
+              <button onClick={() => setShowAccModal(true)} className="mt-4 text-indigo-600 font-bold text-xs underline">Criar minha primeira carteira</button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -253,31 +278,119 @@ const Dashboard: React.FC<Props> = ({ state, updateState, onAddTransaction }) =>
         </div>
       )}
 
+      {/* Transaction Modal */}
+      {showOpModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4 md:p-6">
+          <div className="bg-white rounded-3xl md:rounded-[64px] w-full max-w-xl p-6 md:p-14 shadow-2xl animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowOpModal(null)} className="absolute top-6 right-6 md:top-10 md:right-10 text-slate-300 hover:text-slate-900 transition-colors"><X size={28} /></button>
+            
+            <div className="flex items-center gap-4 md:gap-6 mb-8 md:mb-12">
+              <div className={`w-14 h-14 md:w-20 md:h-20 rounded-2xl md:rounded-[32px] flex items-center justify-center ${
+                showOpModal === TransactionType.INCOME ? 'bg-emerald-50 text-emerald-500' : 
+                showOpModal === TransactionType.EXPENSE ? 'bg-rose-50 text-rose-500' : 'bg-indigo-50 text-indigo-500'
+              }`}>
+                {showOpModal === TransactionType.INCOME ? <Plus size={32} /> : 
+                 showOpModal === TransactionType.EXPENSE ? <Minus size={32} /> : <ArrowRightLeft size={32} />}
+              </div>
+              <div>
+                <h3 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight">
+                  {showOpModal === TransactionType.INCOME ? 'Nova Receita' : 
+                   showOpModal === TransactionType.EXPENSE ? 'Nova Despesa' : 'Nova Transferência'}
+                </h3>
+                <p className="text-slate-400 font-bold text-xs md:text-sm uppercase tracking-widest">Registo de Movimentação</p>
+              </div>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              onAddTransaction({
+                description: formData.get('description') as string,
+                amount: Number(formData.get('amount')),
+                date: new Date().toISOString(),
+                type: showOpModal,
+                category: formData.get('category') as Category,
+                accountId: formData.get('accountId') as string,
+                toAccountId: formData.get('toAccountId') as string || undefined,
+                status: Status.CONCLUIDA
+              });
+              setShowOpModal(null);
+            }} className="space-y-6 md:space-y-8">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 md:mb-4">Descrição</label>
+                <input required name="description" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 text-base md:text-lg focus:ring-4 focus:ring-indigo-100 transition-all" placeholder="Ex: Salário Mensal" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 md:mb-4">Valor</label>
+                  <input required name="amount" type="number" step="0.01" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 text-base md:text-lg" placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 md:mb-4">Categoria</label>
+                  <select name="category" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black">
+                    {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 md:mb-4">
+                    {showOpModal === TransactionType.TRANSFER ? 'Conta de Origem' : 'Conta'}
+                  </label>
+                  <select required name="accountId" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black">
+                    <option value="">Selecionar...</option>
+                    {state.accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency})</option>)}
+                  </select>
+                </div>
+                {showOpModal === TransactionType.TRANSFER && (
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 md:mb-4">Conta de Destino</label>
+                    <select required name="toAccountId" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black">
+                      <option value="">Selecionar...</option>
+                      {state.accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency})</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" className={`w-full py-5 md:py-7 rounded-2xl md:rounded-[32px] font-black text-xs uppercase tracking-[3px] shadow-2xl hover:scale-[1.02] transition-all text-white ${
+                showOpModal === TransactionType.INCOME ? 'bg-emerald-600' : 
+                showOpModal === TransactionType.EXPENSE ? 'bg-rose-600' : 'bg-indigo-600'
+              }`}>
+                Confirmar Operação
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Outros modais simplificados para brevity, mantendo estrutura original do user */}
       {showAccModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-          <div className="bg-white rounded-[56px] w-full max-w-lg p-12 shadow-2xl animate-in zoom-in-95 duration-300 relative">
-            <button onClick={() => setShowAccModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-slate-900"><X size={24} /></button>
-            <h3 className="text-3xl font-black text-slate-900 mb-10 tracking-tight">Criar Nova Carteira</h3>
-            <form onSubmit={handleAddAccount} className="space-y-8">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4 md:p-6">
+          <div className="bg-white rounded-3xl md:rounded-[56px] w-full max-w-lg p-6 md:p-12 shadow-2xl animate-in zoom-in-95 duration-300 relative">
+            <button onClick={() => setShowAccModal(false)} className="absolute top-6 right-6 md:top-8 md:right-8 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+            <h3 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 md:mb-10 tracking-tight">Criar Nova Carteira</h3>
+            <form onSubmit={handleAddAccount} className="space-y-6 md:space-y-8">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Nome da Conta / Banco</label>
-                <input required name="name" className="w-full bg-slate-50 border-none px-8 py-5 rounded-3xl font-black" placeholder="Ex: Conta Corrente" />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3">Nome da Conta / Banco</label>
+                <input required name="name" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-5 rounded-2xl md:rounded-3xl font-black" placeholder="Ex: Conta Corrente" />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Moeda</label>
-                  <select name="currency" className="w-full bg-slate-50 border-none px-8 py-5 rounded-3xl font-black">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3">Moeda</label>
+                  <select name="currency" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-5 rounded-2xl md:rounded-3xl font-black">
                     <option value="Kz">Kwanza (Kz)</option>
                     <option value="EUR">Euro (€)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Saldo Inicial</label>
-                  <input required name="balance" type="number" step="0.01" className="w-full bg-slate-50 border-none px-8 py-5 rounded-3xl font-black" placeholder="0" />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3">Saldo Inicial</label>
+                  <input required name="balance" type="number" step="0.01" className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-5 rounded-2xl md:rounded-3xl font-black" placeholder="0" />
                 </div>
               </div>
-              <button type="submit" className="w-full bg-indigo-600 text-white py-6 rounded-[32px] font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] transition-all">Ativar Carteira</button>
+              <button type="submit" className="w-full bg-indigo-600 text-white py-5 md:py-6 rounded-2xl md:rounded-[32px] font-black text-xs uppercase tracking-widest shadow-2xl hover:scale-[1.02] transition-all">Ativar Carteira</button>
             </form>
           </div>
         </div>

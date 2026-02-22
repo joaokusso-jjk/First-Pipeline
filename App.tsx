@@ -10,7 +10,9 @@ import {
   LogOut,
   ChevronRight,
   Plus,
-  Coins
+  Coins,
+  CalendarCheck,
+  CreditCard
 } from 'lucide-react';
 import { AppState, User, Transaction, TransactionType, Status } from './types';
 
@@ -22,6 +24,8 @@ import Settings from './components/Settings';
 import Auth from './components/Auth';
 import Savings from './components/Savings';
 import Reports from './components/Reports';
+import FixedExpenses from './components/FixedExpenses';
+import Planning from './components/Planning';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -82,7 +86,21 @@ const App: React.FC = () => {
   };
 
   const updateState = (updater: (prev: AppState) => AppState) => {
-    setState(prev => updater(prev));
+    setState(prev => {
+      const newState = updater(prev);
+      // Sync user session if user info changed
+      if (newState.user && JSON.stringify(newState.user) !== JSON.stringify(user)) {
+        setUser(newState.user);
+        localStorage.setItem('kwanza_plan_session', JSON.stringify(newState.user));
+        
+        // Update global users list
+        const usersKey = 'kwanza_plan_users';
+        const savedUsers: User[] = JSON.parse(localStorage.getItem(usersKey) || '[]');
+        const updatedUsers = savedUsers.map(u => u.id === newState.user?.id ? newState.user : u);
+        localStorage.setItem(usersKey, JSON.stringify(updatedUsers));
+      }
+      return newState;
+    });
   };
 
   const addTransaction = (t: Omit<Transaction, 'id'>) => {
@@ -116,10 +134,13 @@ const App: React.FC = () => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
+    { id: 'planning', label: 'Planeamento', icon: CalendarCheck },
+    { id: 'fixedExpenses', label: 'Despesas Fixas', icon: CreditCard },
     { id: 'savings', label: 'Poupança', icon: Coins },
     { id: 'goals', label: 'Metas', icon: Target },
     { id: 'activities', label: 'Atividades', icon: CalendarRange },
     { id: 'reports', label: 'Análise', icon: PieChart },
+    { id: 'settings', label: 'Definições', icon: SettingsIcon },
   ];
 
   return (
@@ -151,16 +172,7 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className="mt-auto p-10 space-y-4">
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-bold text-sm ${
-              activeTab === 'settings' ? 'bg-slate-900 text-white' : 'text-slate-400 hover:bg-slate-50'
-            }`}
-          >
-            <SettingsIcon size={20} />
-            Ajustes
-          </button>
+        <div className="mt-auto p-10">
           <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-3xl">
             <img src={user.avatar} className="w-10 h-10 rounded-xl shadow-sm" alt="profile" />
             <div className="flex-1 min-w-0 text-left">
@@ -174,6 +186,8 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto pb-32 md:pb-0">
         <div className="p-6 md:p-12 max-w-6xl mx-auto">
           {activeTab === 'dashboard' && <Dashboard state={state} updateState={updateState} onAddTransaction={addTransaction} />}
+          {activeTab === 'planning' && <Planning state={state} />}
+          {activeTab === 'fixedExpenses' && <FixedExpenses state={state} updateState={updateState} />}
           {activeTab === 'savings' && <Savings state={state} updateState={updateState} />}
           {activeTab === 'goals' && <Goals state={state} updateState={updateState} />}
           {activeTab === 'activities' && <Activities state={state} updateState={updateState} />}
@@ -183,7 +197,7 @@ const App: React.FC = () => {
       </main>
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-50 flex justify-around items-center rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        {menuItems.slice(0, 4).map((item) => (
+        {[menuItems[0], menuItems[3], menuItems[4], menuItems[7]].map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}

@@ -1,9 +1,9 @@
 
 import React, { useMemo } from 'react';
 import { AppState, Status } from '../types';
-import { formatKz, formatEur, exportToCSV } from '../utils';
+import { formatKz, formatEur, exportToCSV, getMonthYear } from '../utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
-import { Download, CheckCircle2, TrendingUp, Filter } from 'lucide-react';
+import { Download, CheckCircle2, TrendingUp, Filter, TrendingDown } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -48,41 +48,55 @@ const Reports: React.FC<Props> = ({ state }) => {
   const handleExportSavings = () => exportToCSV(state.savings, 'historico_poupanca');
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-10">
-      <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+    <div className="space-y-8 md:space-y-12 animate-in fade-in duration-500 pb-20">
+      <div className="bg-white p-6 md:p-12 rounded-3xl md:rounded-[56px] border border-slate-50 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h3 className="text-xl font-bold text-slate-800">Relatórios de Evolução</h3>
-          <p className="text-slate-500 text-sm">Análise detalhada do seu desempenho financeiro.</p>
+          <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter">Relatórios</h2>
+          <p className="text-slate-500 font-bold mt-2 text-sm md:text-base">Análise detalhada do seu fluxo financeiro.</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={handleExportActivities} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-bold text-xs uppercase">
-            <Download size={16} />
-            CSV Atividades
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleExportActivities}
+            className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-slate-900 text-white px-6 md:px-10 py-4 md:py-5 rounded-2xl md:rounded-[28px] font-black text-[10px] md:text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all"
+          >
+            <Download size={18} md:size={20} /> Atividades
           </button>
-          <button onClick={handleExportSavings} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-bold text-xs uppercase">
-            <Download size={16} />
-            CSV Poupança
+          <button 
+            onClick={handleExportSavings}
+            className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-indigo-600 text-white px-6 md:px-10 py-4 md:py-5 rounded-2xl md:rounded-[28px] font-black text-[10px] md:text-xs uppercase tracking-widest shadow-2xl hover:scale-105 transition-all"
+          >
+            <Download size={18} md:size={20} /> Poupança
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <CheckCircle2 size={20} className="text-emerald-500" />
-            Gastos por Categoria
-          </h4>
-          <div className="h-[300px] w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-10">
+        {/* Spending by Category */}
+        <div className="bg-white p-6 md:p-12 rounded-3xl md:rounded-[56px] border border-slate-50 shadow-sm">
+          <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-8 md:mb-10 flex items-center gap-3">
+            <TrendingDown className="text-indigo-600" /> Gastos por Categoria
+          </h3>
+          <div className="h-[300px] md:h-[400px] w-full">
             {activitiesByCategory.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={activitiesByCategory} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                  <Pie
+                    data={activitiesByCategory}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={8}
+                    dataKey="value"
+                  >
                     {activitiesByCategory.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value: number) => formatKz(value)} />
-                  <Legend />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', fontWeight: '900' }}
+                    formatter={(value: number) => formatKz(value)}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -91,25 +105,34 @@ const Reports: React.FC<Props> = ({ state }) => {
               </div>
             )}
           </div>
+          <div className="grid grid-cols-2 gap-4 mt-8">
+            {activitiesByCategory.map((item, index) => (
+              <div key={item.name} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                <span className="text-[10px] font-black text-slate-500 uppercase truncate">{item.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <h4 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <TrendingUp size={20} className="text-indigo-500" />
-            Poupança Mensal por Moeda
-          </h4>
-          <div className="h-[300px] w-full">
+        {/* Savings Trend */}
+        <div className="bg-white p-6 md:p-12 rounded-3xl md:rounded-[56px] border border-slate-50 shadow-sm">
+          <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-8 md:mb-10 flex items-center gap-3">
+            <TrendingUp className="text-emerald-500" /> Evolução de Poupança
+          </h3>
+          <div className="h-[300px] md:h-[400px] w-full">
             {savingsTrend.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={savingsTrend}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="month" stroke="#94a3b8" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} axisLine={false} tickLine={false} orientation="left" />
-                  <YAxis yAxisId="right" stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} orientation="right" />
-                  <Tooltip />
-                  <Legend />
-                  <Bar yAxisId="left" dataKey="kz" name="Kz Poupadis" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar yAxisId="right" dataKey="eur" name="EUR Poupados" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
+                  <YAxis hide />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc', radius: 16 }}
+                    contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', fontWeight: '900' }}
+                    formatter={(value: number) => formatKz(value)}
+                  />
+                  <Bar dataKey="kz" fill="#10b981" radius={[12, 12, 12, 12]} barSize={24} />
+                  <Bar dataKey="eur" fill="#6366f1" radius={[12, 12, 12, 12]} barSize={24} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -121,42 +144,40 @@ const Reports: React.FC<Props> = ({ state }) => {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50 flex items-center gap-2 bg-slate-50/50">
-          <Filter size={20} className="text-slate-600" />
-          <h4 className="font-bold text-slate-800">Últimas Conclusões</h4>
+      {/* Recent Completed Activities */}
+      <section>
+        <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-6 md:mb-8 px-4 md:px-6">Concluídos Recentemente</h3>
+        <div className="bg-white rounded-3xl md:rounded-[56px] border border-slate-100 p-6 md:p-12 shadow-sm">
+          <div className="space-y-6 md:space-y-8">
+            {state.activities
+              .filter(a => a.status === Status.CONCLUIDA)
+              .sort((a, b) => b.plannedMonth.localeCompare(a.plannedMonth))
+              .slice(0, 5)
+              .map(activity => (
+                <div key={activity.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 hover:bg-slate-50 rounded-2xl md:rounded-[32px] transition-all gap-4">
+                  <div className="flex items-center gap-4 md:gap-7">
+                    <div className="w-12 h-12 md:w-16 md:h-16 bg-emerald-50 text-emerald-500 rounded-xl md:rounded-[28px] flex items-center justify-center">
+                      <CheckCircle2 size={24} md:size={28} />
+                    </div>
+                    <div>
+                      <p className="text-lg md:text-xl font-black text-slate-900">{activity.name}</p>
+                      <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[2px] mt-1">
+                        {getMonthYear(activity.plannedMonth)} • {activity.category}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right w-full sm:w-auto">
+                    <p className="text-xl md:text-2xl font-black text-slate-900">{formatKz(activity.costEstimate)}</p>
+                    <p className="text-[9px] md:text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Liquidado</p>
+                  </div>
+                </div>
+              ))}
+            {state.activities.filter(a => a.status === Status.CONCLUIDA).length === 0 && (
+              <p className="text-center text-slate-400 italic text-sm">Nenhuma atividade concluída para exibir.</p>
+            )}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-400">
-              <tr>
-                <th className="px-6 py-4">Mês</th>
-                <th className="px-6 py-4">Atividade</th>
-                <th className="px-6 py-4">Categoria</th>
-                <th className="px-6 py-4 text-right">Custo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {state.activities
-                .filter(a => a.status === Status.CONCLUIDA)
-                .sort((a, b) => b.plannedMonth.localeCompare(a.plannedMonth))
-                .slice(0, 5)
-                .map(activity => (
-                  <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 text-xs font-semibold text-slate-500">{activity.plannedMonth}</td>
-                    <td className="px-6 py-4 font-bold text-slate-700">{activity.name}</td>
-                    <td className="px-6 py-4">
-                      <span className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded text-[10px] font-bold uppercase">
-                        {activity.category}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-black text-slate-800">{formatKz(activity.costEstimate)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </section>
     </div>
   );
 };
