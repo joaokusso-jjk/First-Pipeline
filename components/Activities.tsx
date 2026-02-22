@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { AppState, FinancialActivity, Category, Priority, Status } from '../types';
+import { AppState, FinancialActivity, Category, Priority, Status, TransactionType, Transaction } from '../types';
 import { formatKz, formatEur, getCurrentMonthStr, getMonthYear } from '../utils';
-import { Plus, Trash2, Calendar, AlertCircle, ChevronDown, CheckCircle, Clock, Wallet, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, AlertCircle, ChevronDown, CheckCircle, Clock, Wallet, X, Edit2, RotateCcw } from 'lucide-react';
 
 interface Props {
   state: AppState;
@@ -12,6 +12,7 @@ interface Props {
 const Activities: React.FC<Props> = ({ state, updateState }) => {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
   const [isAdding, setIsAdding] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<FinancialActivity | null>(null);
   
   const monthActivities = state.activities.filter(a => a.plannedMonth === selectedMonth);
 
@@ -41,19 +42,135 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
     setNewActivity({ ...newActivity, name: '', costEstimate: 0, accountId: '' });
   };
 
-  const updateStatus = (id: string, status: Status) => {
-    updateState(prev => ({
-      ...prev,
-      activities: prev.activities.map(a => a.id === id ? { ...a, status } : a)
-    }));
+  const handleEdit = () => {
+    if (!editingActivity || !editingActivity.name || !editingActivity.costEstimate || !editingActivity.accountId) {
+      alert("Preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    updateState(prev => {
+      // Se a atividade já estava paga, precisamos atualizar a transação associada
+      let updatedTransactions = [...prev.transactions];
+      let updatedAccounts = [...prev.accounts];
+
+      if (editingActivity.status === Status.CONCLUIDA && editingActivity.transactionId) {
+        const oldActivity = prev.activities.find(a => a.id === editingActivity.id);
+        if (oldActivity) {
+          updatedTransactions = updatedTransactions.map(t => {
+            if (t.id === editingActivity.transactionId) {
+              return {
+                ...t,
+                description: `Pagamento: ${editingActivity.name}`,
+                amount: editingActivity.costEstimate,
+                category: editingActivity.category,
+                accountId: editingActivity.accountId!
+              };
+            }
+            return t;
+          });
+
+          // Ajustar saldos se a conta ou valor mudou
+          if (oldActivity.accountId !== editingActivity.accountId || oldActivity.costEstimate !== editingActivity.costEstimate) {
+            updatedAccounts = updatedAccounts.map(acc => {
+              if (acc.id === oldActivity.accountId) {
+                return { ...acc, balance: acc.balance + oldActivity.costEstimate };
+              }
+              return acc;
+            });
+            updatedAccounts = updatedAccounts.map(acc => {
+              if (acc.id === editingActivity.accountId) {
+                return { ...acc, balance: acc.balance - editingActivity.costEstimate };
+              }
+              return acc;
+            });
+          }
+        }
+      }
+
+      return {
+        ...prev,
+        accounts: updatedAccounts,
+        transactions: updatedTransactions,
+        activities: prev.activities.map(a => a.id === editingActivity.id ? editingActivity : a)
+      };
+    });
+    setEditingActivity(null);
+  };
+
+  const togglePayment = (activity: FinancialActivity) => {
+    const isPaying = activity.status !== Status.CONCLUIDA;
+    
+    updateState(prev => {
+      let updatedTransactions = [...prev.transactions];
+      let updatedAccounts = [...prev.accounts];
+      let transactionId = activity.transactionId;
+
+      if (isPaying) {
+        // Criar transação
+        transactionId = Math.random().toString(36).substr(2, 9);
+        const newTransaction: Transaction = {
+          id: transactionId,
+          description: `Pagamento: ${activity.name}`,
+          amount: activity.costEstimate,
+          date: new Date().toISOString(),
+          type: TransactionType.EXPENSE,
+          category: activity.category,
+          accountId: activity.accountId!,
+          status: Status.CONCLUIDA
+        };
+        updatedTransactions = [newTransaction, ...updatedTransactions];
+        
+        // Atualizar saldo
+        updatedAccounts = updatedAccounts.map(acc => 
+          acc.id === activity.accountId ? { ...acc, balance: acc.balance - activity.costEstimate } : acc
+        );
+      } else {
+        // Reverter: Remover transação
+        updatedTransactions = updatedTransactions.filter(t => t.id !== activity.transactionId);
+        
+        // Devolver saldo
+        updatedAccounts = updatedAccounts.map(acc => 
+          acc.id === activity.accountId ? { ...acc, balance: acc.balance + activity.costEstimate } : acc
+        );
+        transactionId = undefined;
+      }
+
+      return {
+        ...prev,
+        accounts: updatedAccounts,
+        transactions: updatedTransactions,
+        activities: prev.activities.map(a => a.id === activity.id ? { 
+          ...a, 
+          status: isPaying ? Status.CONCLUIDA : Status.PLANEADA,
+          transactionId
+        } : a)
+      };
+    });
   };
 
   const deleteActivity = (id: string) => {
-    if(confirm("Eliminar esta atividade?")) {
-      updateState(prev => ({
-        ...prev,
-        activities: prev.activities.filter(a => a.id !== id)
-      }));
+    const activity = state.activities.find(a => a.id === id);
+    if (!activity) return;
+
+    if(confirm("Eliminar esta atividade? Se estiver paga, a transação também será removida.")) {
+      updateState(prev => {
+        let updatedTransactions = [...prev.transactions];
+        let updatedAccounts = [...prev.accounts];
+
+        if (activity.status === Status.CONCLUIDA && activity.transactionId) {
+          updatedTransactions = updatedTransactions.filter(t => t.id !== activity.transactionId);
+          updatedAccounts = updatedAccounts.map(acc => 
+            acc.id === activity.accountId ? { ...acc, balance: acc.balance + activity.costEstimate } : acc
+          );
+        }
+
+        return {
+          ...prev,
+          accounts: updatedAccounts,
+          transactions: updatedTransactions,
+          activities: prev.activities.filter(a => a.id !== id)
+        };
+      });
     }
   };
 
@@ -129,12 +246,22 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
 
                 <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto">
                   <button 
-                    onClick={() => updateStatus(activity.id, activity.status === Status.CONCLUIDA ? Status.PLANEADA : Status.CONCLUIDA)}
-                    className={`flex-1 sm:flex-none px-6 md:px-8 py-4 md:py-5 rounded-xl md:rounded-[24px] font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all ${
+                    onClick={() => togglePayment(activity)}
+                    className={`flex-1 sm:flex-none px-6 md:px-8 py-4 md:py-5 rounded-xl md:rounded-[24px] font-black text-[9px] md:text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                       activity.status === Status.CONCLUIDA ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-900 text-white'
                     }`}
                   >
-                    {activity.status === Status.CONCLUIDA ? 'Pago' : 'Marcar Pago'}
+                    {activity.status === Status.CONCLUIDA ? (
+                      <><RotateCcw size={14} /> Reverter</>
+                    ) : (
+                      <><CheckCircle size={14} /> Pagar</>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => setEditingActivity(activity)}
+                    className="p-3 md:p-5 text-slate-400 hover:text-indigo-600 transition-colors"
+                  >
+                    <Edit2 size={20} md:size={24} />
                   </button>
                   <button onClick={() => deleteActivity(activity.id)} className="p-3 md:p-5 text-slate-200 hover:text-rose-500 transition-colors">
                     <Trash2 size={20} md:size={24} />
@@ -152,13 +279,18 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
         )}
       </div>
 
-      {isAdding && (
+      {(isAdding || editingActivity) && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] flex items-center justify-center p-4 md:p-6">
           <div className="bg-white rounded-3xl md:rounded-[64px] w-full max-w-2xl p-6 md:p-14 shadow-2xl animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsAdding(false)} className="absolute top-6 right-6 md:top-10 md:right-10 text-slate-300 hover:text-slate-900 transition-colors">
+            <button 
+              onClick={() => { setIsAdding(false); setEditingActivity(null); }} 
+              className="absolute top-6 right-6 md:top-10 md:right-10 text-slate-300 hover:text-slate-900 transition-colors"
+            >
               <X size={28} />
             </button>
-            <h3 className="text-3xl md:text-4xl font-black text-slate-900 mb-8 md:mb-12 tracking-tight">Planear Atividade</h3>
+            <h3 className="text-3xl md:text-4xl font-black text-slate-900 mb-8 md:mb-12 tracking-tight">
+              {editingActivity ? 'Editar Atividade' : 'Planear Atividade'}
+            </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
               <div className="space-y-6 md:space-y-8">
@@ -166,18 +298,26 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Nome do Plano</label>
                   <input 
                     type="text" 
-                    value={newActivity.name}
-                    onChange={e => setNewActivity({...newActivity, name: e.target.value})}
+                    value={editingActivity ? editingActivity.name : newActivity.name}
+                    onChange={e => editingActivity 
+                      ? setEditingActivity({...editingActivity, name: e.target.value})
+                      : setNewActivity({...newActivity, name: e.target.value})
+                    }
                     className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 text-sm md:text-base"
                     placeholder="Ex: Consultas Médicas"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Custo Estimado</label>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">
+                    {editingActivity?.status === Status.CONCLUIDA ? 'Valor Pago' : 'Custo Estimado'}
+                  </label>
                   <input 
                     type="number" 
-                    value={newActivity.costEstimate || ''}
-                    onChange={e => setNewActivity({...newActivity, costEstimate: Number(e.target.value)})}
+                    value={editingActivity ? editingActivity.costEstimate : (newActivity.costEstimate || '')}
+                    onChange={e => editingActivity
+                      ? setEditingActivity({...editingActivity, costEstimate: Number(e.target.value)})
+                      : setNewActivity({...newActivity, costEstimate: Number(e.target.value)})
+                    }
                     className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-indigo-600 text-xl md:text-2xl"
                   />
                 </div>
@@ -187,8 +327,11 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Categoria</label>
                   <select 
-                    value={newActivity.category}
-                    onChange={e => setNewActivity({...newActivity, category: e.target.value as Category})}
+                    value={editingActivity ? editingActivity.category : newActivity.category}
+                    onChange={e => editingActivity
+                      ? setEditingActivity({...editingActivity, category: e.target.value as Category})
+                      : setNewActivity({...newActivity, category: e.target.value as Category})
+                    }
                     className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 text-sm md:text-base"
                   >
                     {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
@@ -197,8 +340,11 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Fonte de Fundos (Conta)</label>
                   <select 
-                    value={newActivity.accountId}
-                    onChange={e => setNewActivity({...newActivity, accountId: e.target.value})}
+                    value={editingActivity ? editingActivity.accountId : newActivity.accountId}
+                    onChange={e => editingActivity
+                      ? setEditingActivity({...editingActivity, accountId: e.target.value})
+                      : setNewActivity({...newActivity, accountId: e.target.value})
+                    }
                     className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 text-sm md:text-base"
                   >
                     <option value="">Selecionar Conta...</option>
@@ -216,9 +362,14 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
                 {Object.values(Priority).map(p => (
                   <button 
                     key={p} 
-                    onClick={() => setNewActivity({...newActivity, priority: p})}
+                    onClick={() => editingActivity
+                      ? setEditingActivity({...editingActivity, priority: p})
+                      : setNewActivity({...newActivity, priority: p})
+                    }
                     className={`flex-1 py-4 md:py-5 rounded-xl md:rounded-[24px] font-black text-[9px] md:text-[10px] uppercase tracking-widest border-2 transition-all ${
-                      newActivity.priority === p ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200' : 'bg-transparent text-slate-400 border-slate-100'
+                      (editingActivity ? editingActivity.priority === p : newActivity.priority === p) 
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200' 
+                        : 'bg-transparent text-slate-400 border-slate-100'
                     }`}
                   >
                     {p}
@@ -229,10 +380,10 @@ const Activities: React.FC<Props> = ({ state, updateState }) => {
 
             <div className="flex gap-4 pt-8 md:pt-12">
               <button 
-                onClick={handleAdd}
+                onClick={editingActivity ? handleEdit : handleAdd}
                 className="w-full bg-indigo-600 text-white py-5 md:py-7 rounded-2xl md:rounded-[32px] font-black text-xs uppercase tracking-[3px] shadow-2xl hover:scale-105 transition-all"
               >
-                Confirmar Planeamento
+                {editingActivity ? 'Guardar Alterações' : 'Confirmar Planeamento'}
               </button>
             </div>
           </div>

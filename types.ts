@@ -57,6 +57,7 @@ export interface FinancialActivity {
   priority: Priority;
   status: Status;
   accountId?: string; // Conta vinculada à atividade
+  transactionId?: string; // ID da transação gerada ao pagar
 }
 
 export interface Transaction {
@@ -79,7 +80,7 @@ export interface Goal {
   deadline: string;
   category: Category;
   color: string;
-  accountId?: string; // Conta onde o dinheiro da meta está guardado
+  accountIds?: string[]; // Contas onde o dinheiro da meta está guardado
 }
 
 export interface User {

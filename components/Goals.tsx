@@ -14,27 +14,38 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
   const [newGoal, setNewGoal] = useState<Partial<Goal>>({
     name: '',
     targetAmount: 0,
-    currentAmount: 0,
     deadline: '',
     category: Category.INVESTIMENTOS,
-    accountId: ''
+    accountIds: []
   });
 
   const handleAdd = () => {
-    if (!newGoal.name || !newGoal.targetAmount || !newGoal.accountId) {
-      alert("Por favor, preencha o nome, o valor alvo e selecione uma conta vinculada.");
+    if (!newGoal.name || !newGoal.targetAmount || !newGoal.accountIds || newGoal.accountIds.length === 0) {
+      alert("Por favor, preencha o nome, o valor alvo e selecione pelo menos uma conta vinculada.");
       return;
     }
     updateState(prev => ({
       ...prev,
       goals: [...(prev.goals || []), {
         ...newGoal as Goal,
+        currentAmount: 0, // Será calculado dinamicamente
         id: Math.random().toString(36).substr(2, 9),
         color: '#6366f1'
       }]
     }));
     setIsAdding(false);
-    setNewGoal({ name: '', targetAmount: 0, currentAmount: 0, deadline: '', category: Category.INVESTIMENTOS, accountId: '' });
+    setNewGoal({ name: '', targetAmount: 0, deadline: '', category: Category.INVESTIMENTOS, accountIds: [] });
+  };
+
+  const toggleAccount = (accountId: string) => {
+    setNewGoal(prev => {
+      const currentIds = prev.accountIds || [];
+      if (currentIds.includes(accountId)) {
+        return { ...prev, accountIds: currentIds.filter(id => id !== accountId) };
+      } else {
+        return { ...prev, accountIds: [...currentIds, accountId] };
+      }
+    });
   };
 
   const deleteGoal = (id: string) => {
@@ -63,8 +74,10 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {state.goals.map(goal => {
-          const progress = (goal.currentAmount / goal.targetAmount) * 100;
-          const linkedAccount = state.accounts.find(a => a.id === goal.accountId);
+          // Calcular saldo total das contas selecionadas
+          const selectedAccounts = state.accounts.filter(a => goal.accountIds?.includes(a.id));
+          const totalBalance = selectedAccounts.reduce((sum, acc) => sum + acc.balance, 0);
+          const progress = (totalBalance / goal.targetAmount) * 100;
           
           return (
             <div key={goal.id} className="bg-white p-6 md:p-10 rounded-3xl md:rounded-[48px] border border-slate-50 shadow-sm relative overflow-hidden group hover:shadow-2xl transition-all">
@@ -81,17 +94,19 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
                 <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-1">{goal.name}</h3>
                 <div className="flex flex-wrap items-center gap-2 mb-6 md:mb-8">
                   <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[2px]">{goal.category}</span>
-                  {linkedAccount && (
-                    <span className="text-[8px] md:text-[9px] font-black bg-slate-100 text-slate-500 px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
-                      <Wallet size={10} /> {linkedAccount.name}
-                    </span>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {selectedAccounts.map(acc => (
+                      <span key={acc.id} className="text-[8px] md:text-[9px] font-black bg-slate-100 text-slate-500 px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
+                        <Wallet size={10} /> {acc.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 
                 <div className="space-y-4 md:space-y-5">
                   <div className="flex justify-between items-end">
                     <p className="text-2xl md:text-3xl font-black text-slate-900">
-                      {linkedAccount?.currency === 'EUR' ? formatEur(goal.currentAmount) : formatKz(goal.currentAmount)}
+                      {formatKz(totalBalance)}
                     </p>
                     <p className="text-xs md:text-sm font-black text-indigo-600">{progress.toFixed(0)}%</p>
                   </div>
@@ -102,7 +117,7 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
                     />
                   </div>
                   <div className="flex justify-between text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest pt-2">
-                    <span>Falta: {linkedAccount?.currency === 'EUR' ? formatEur(goal.targetAmount - goal.currentAmount) : formatKz(goal.targetAmount - goal.currentAmount)}</span>
+                    <span>Falta: {formatKz(Math.max(0, goal.targetAmount - totalBalance))}</span>
                     <span className="flex items-center gap-1"><Calendar size={12} /> {goal.deadline || 'Sem data'}</span>
                   </div>
                 </div>
@@ -153,18 +168,6 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Depósito Inicial</label>
-                  <input 
-                    type="number" 
-                    value={newGoal.currentAmount || ''}
-                    onChange={e => setNewGoal({...newGoal, currentAmount: Number(e.target.value)})}
-                    className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-indigo-600 focus:ring-4 focus:ring-indigo-100 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8">
-                <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Categoria</label>
                   <select 
                     value={newGoal.category}
@@ -174,18 +177,32 @@ const Goals: React.FC<Props> = ({ state, updateState }) => {
                     {Object.values(Category).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Conta de Reserva</label>
-                  <select 
-                    value={newGoal.accountId}
-                    onChange={e => setNewGoal({...newGoal, accountId: e.target.value})}
-                    className="w-full bg-slate-50 border-none px-6 md:px-8 py-4 md:py-6 rounded-2xl md:rounded-[32px] font-black text-slate-900 focus:ring-4 focus:ring-indigo-100 transition-all"
-                  >
-                    <option value="">Selecionar Conta...</option>
-                    {state.accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency})</option>
-                    ))}
-                  </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 md:mb-4">Contas Vinculadas (Múltiplas)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {state.accounts.map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => toggleAccount(acc.id)}
+                      className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all text-left ${
+                        newGoal.accountIds?.includes(acc.id) 
+                          ? 'bg-indigo-50 border-indigo-600 text-indigo-900' 
+                          : 'bg-slate-50 border-transparent text-slate-500 hover:border-slate-200'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
+                        newGoal.accountIds?.includes(acc.id) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300'
+                      }`}>
+                        {newGoal.accountIds?.includes(acc.id) && <Plus size={14} className="text-white rotate-45" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black truncate">{acc.name}</p>
+                        <p className="text-[10px] font-bold opacity-60">{formatKz(acc.balance)}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
