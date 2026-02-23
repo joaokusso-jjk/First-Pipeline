@@ -58,17 +58,38 @@ const App: React.FC = () => {
     if (user) {
       const storageKey = `kwanza_plan_data_${user.id}`;
       const saved = localStorage.getItem(storageKey);
+      
+      let initialState = { ...state, user };
+
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setState({ ...parsed, user });
-        } catch (e) { console.error(e); }
+          
+          // Migration: Convert accountId to accountIds for goals
+          const migratedGoals = (parsed.goals || []).map((goal: any) => {
+            if (goal.accountId && !goal.accountIds) {
+              return { ...goal, accountIds: [goal.accountId] };
+            }
+            return goal;
+          });
+
+          initialState = {
+            ...state,
+            ...parsed,
+            goals: migratedGoals,
+            user // Always use the session user
+          };
+        } catch (e) { 
+          console.error("Error loading saved data:", e); 
+        }
       }
+      
+      setState(initialState);
     }
   }, [user]);
 
   useEffect(() => {
-    if (user && state.user) {
+    if (user && state.user && state.user.id === user.id) {
       localStorage.setItem(`kwanza_plan_data_${user.id}`, JSON.stringify(state));
     }
   }, [state, user]);
